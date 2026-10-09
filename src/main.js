@@ -1,0 +1,492 @@
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+import { SSAOPass } from 'three/addons/postprocessing/SSAOPass.js';
+import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
+import { createGardenScene, createStone, originalStones, seededRandom } from './scene.js';
+import { createInitialHeights, applyBrush, sampleHeight, clamp, COLUMN_COUNT, ROW_COUNT } from './terrain.js';
+import './style.css';
+import './minimal.css';
+
+const canvas = document.querySelector('#garden');
+let renderer;
+try {
+  renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance', preserveDrawingBuffer: true });
+} catch (error) {
+  document.querySelector('#loading').innerHTML = '<span class="loading-mark">庭</span><h2>The garden needs WebGL.</h2><p>Please enable hardware acceleration in your browser, then reload.</p>';
+  throw error;
+}
+renderer.setPixelRatio(Math.min(devicePixelRatio, 1.6));
+renderer.setSize(innerWidth, innerHeight);
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.shadowMap.autoUpdate = false;
+renderer.shadowMap.needsUpdate = true;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.12;
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+
+const { scene, sand, sunlight, hemisphere, fillLight, rockMaterial, mossMaterial, temple } = createGardenScene();
+let renderRequested = true;
+const camera = new THREE.PerspectiveCamera(64, innerWidth / innerHeight, .1, 150);
+camera.position.set(.6, 2.7, 11.25);
+const controls = new OrbitControls(camera, canvas);
+controls.target.set(0, .38, -.6);
+controls.enableDamping = true; controls.dampingFactor = .065;
+controls.minDistance = 9.5; controls.maxDistance = 12.3;
+controls.minPolarAngle = 1.34; controls.maxPolarAngle = 1.44;
+controls.minAzimuthAngle = -.36; controls.maxAzimuthAngle = .36;
+controls.enablePan = false;
+controls.mouseButtons = { LEFT: null, MIDDLE: THREE.MOUSE.DOLLY, RIGHT: THREE.MOUSE.ROTATE };
+controls.touches = { ONE: null, TWO: THREE.TOUCH.DOLLY_ROTATE };
+controls.update();
+
+const composer = new EffectComposer(renderer);
+composer.addPass(new RenderPass(scene, camera));
+const ambientOcclusion = new SSAOPass(scene, camera, innerWidth, innerHeight);
+ambientOcclusion.kernelRadius = .55;
+ambientOcclusion.minDistance = .002;
+ambientOcclusion.maxDistance = .16;
+composer.addPass(ambientOcclusion);
+composer.addPass(new OutputPass());
+ambientOcclusion.setSize(Math.ceil(innerWidth * .65), Math.ceil(innerHeight * .65));
+
+let heights = createInitialHeights(originalStones);
+const stoneGroup = new THREE.Group(); scene.add(stoneGroup);
+let activeTool = 'rake';
+let brushDiameter = 1.6;
+let brushPressure = .45;
+let chosenStoneShape = 'spire';
+let chosenStoneSize = 1;
+let chosenLighting = 'afternoon';
+let isElevatedView = false;
+let isContemplating = false;
+let isSculpting = false;
+let selectedStone = null;
+let draggedStone = null;
+let pointerIsInside = false;
+let terrainNeedsUpdate = true;
+let strokeDirection = new THREE.Vector2(1, 0);
+let lastStrokePoint = null;
+let lastPointerPosition = new THREE.Vector2();
+const pointerPosition = new THREE.Vector2(2, 2);
+const raycaster = new THREE.Raycaster();
+// Sculpting coordinates are independent of the displaced heightfield.
+const interactionPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+const history = [];
+const storageKey = 'ryoanji-garden-v1';
+const toolDescriptions = {
+  rake: ['Rake the gravel', 'Trace a path. Let the lines follow your hand.'],
+  raise: ['Lift a landscape', 'Build a gentle rise with a patient hand.'],
+  press: ['Make a hollow', 'Press into the gravel. Give the light a place to rest.'],
+  push: ['Move like water', 'Drag to carry sand forward, leaving a hollow behind.'],
+  smooth: ['Soften the edges', 'Let each ridge settle back into stillness.'],
+  stone: ['A stone, an island', 'Find a form. Give it room to be itself.'],
+};
+
+const brushGeometry = new THREE.BufferGeometry();
+const brushPositions = new Float32Array(129 * 3);
+brushGeometry.setAttribute('position', new THREE.BufferAttribute(brushPositions, 3));
+const brushRing = new THREE.Line(brushGeometry, new THREE.LineBasicMaterial({ color: '#f8f6da', transparent: true, opacity: .9, depthTest: false }));
+brushRing.renderOrder = 5; scene.add(brushRing); brushRing.visible = false;
+const selectionRing = new THREE.Mesh(new THREE.RingGeometry(.92, .935, 80), new THREE.MeshBasicMaterial({ color: '#e2cb8f', side: THREE.DoubleSide, transparent: true, opacity: .9, depthTest: false }));
+selectionRing.rotation.x = -Math.PI / 2; selectionRing.visible = false; selectionRing.renderOrder = 6; scene.add(selectionRing);
+let ghostStone = null;
+
+function showToast(message) {
+  const toast = document.querySelector('#toast');
+  toast.textContent = message; toast.classList.add('visible');
+  clearTimeout(showToast.timeout);
+  showToast.timeout = setTimeout(function hideToast() { toast.classList.remove('visible'); }, 2300);
+}
+
+function updateStoneCount() { document.querySelector('#stone-count').textContent = `${stoneGroup.children.length} STONES`; }
+
+function disposeStone(stone) {
+  stone.traverse(function disposeMesh(child) { if (child.isMesh) child.geometry.dispose(); });
+  stone.removeFromParent();
+  renderer.shadowMap.needsUpdate = true; renderRequested = true;
+}
+
+function addStone(definition) {
+  const stone = createStone(definition, rockMaterial, mossMaterial);
+  stone.position.y = sampleHeight(heights, definition.positionX, definition.positionZ);
+  stoneGroup.add(stone); updateStoneCount(); return stone;
+}
+
+function serializeGarden() {
+  return { version: 1, heights: Array.from(heights), stones: stoneGroup.children.map(function readStone(stone) { return { ...stone.userData.definition }; }), lighting: chosenLighting };
+}
+
+function rememberGarden() {
+  history.push({ heights: heights.slice(), stones: stoneGroup.children.map(function readStone(stone) { return { ...stone.userData.definition }; }) });
+  if (history.length > 24) history.shift();
+  document.querySelector('#undo-button').disabled = false;
+  document.querySelector('#save-status').textContent = 'An evolving landscape. Save to keep it.';
+}
+
+function restoreGarden(snapshot) {
+  heights = new Float32Array(snapshot.heights);
+  for (const stone of [...stoneGroup.children]) disposeStone(stone);
+  for (const definition of snapshot.stones) addStone(definition);
+  selectedStone = null; terrainNeedsUpdate = true; updateStoneCount();
+}
+
+function undo() {
+  if (!history.length) { showToast('The garden is at its beginning.'); return; }
+  restoreGarden(history.pop());
+  document.querySelector('#undo-button').disabled = history.length === 0;
+  showToast('One gesture, gently undone.');
+}
+
+function validateSavedGarden(saved) {
+  if (!saved || saved.version !== 1 || !Array.isArray(saved.heights) || saved.heights.length !== COLUMN_COUNT * ROW_COUNT || !saved.heights.every(function validHeight(height) { return Number.isFinite(height) && height >= -.66 && height <= 1.51; })) return false;
+  return Array.isArray(saved.stones) && saved.stones.length <= 80 && saved.stones.every(function validStone(stone) {
+    return ['spire', 'reclining', 'mountain', 'split'].includes(stone.shape) && Number.isFinite(stone.positionX) && Math.abs(stone.positionX) <= 11.8 && Number.isFinite(stone.positionZ) && Math.abs(stone.positionZ) <= 5.5 && Number.isFinite(stone.size) && stone.size >= .3 && stone.size <= 2 && Number.isFinite(stone.rotation) && Number.isFinite(stone.seed);
+  });
+}
+
+function updateTerrain() {
+  renderRequested = true;
+  const positions = sand.geometry.attributes.position;
+  const colors = sand.geometry.attributes.color;
+  for (let vertexIndex = 0; vertexIndex < heights.length; vertexIndex++) {
+    positions.setY(vertexIndex, heights[vertexIndex]);
+    const neighborHeight = (heights[Math.max(0, vertexIndex - COLUMN_COUNT)] + heights[Math.min(heights.length - 1, vertexIndex + COLUMN_COUNT)] + heights[Math.max(0, vertexIndex - 1)] + heights[Math.min(heights.length - 1, vertexIndex + 1)]) / 4;
+    const shade = clamp(.88 + (heights[vertexIndex] - neighborHeight) * 6.5, .62, 1);
+    colors.setXYZ(vertexIndex, shade, shade, shade);
+  }
+  colors.needsUpdate = true;
+  positions.needsUpdate = true;
+  sand.geometry.computeVertexNormals(); sand.geometry.computeBoundingSphere();
+  for (const stone of stoneGroup.children) {
+    const nextHeight = sampleHeight(heights, stone.position.x, stone.position.z);
+    if (Math.abs(stone.position.y - nextHeight) > .001) renderer.shadowMap.needsUpdate = true;
+    stone.position.y = nextHeight;
+  }
+  terrainNeedsUpdate = false;
+}
+
+function setLighting(lighting) {
+  renderRequested = true; renderer.shadowMap.needsUpdate = true;
+  chosenLighting = lighting;
+  const configurations = {
+    morning: { sun: '#fff1d2', sky: '#d4ded8', intensity: 2.1, ambient: 1.8, position: [-13, 12, -2], exposure: 1.12, label: 'EARLY MORNING' },
+    afternoon: { sun: '#ffe9c8', sky: '#c7cfbd', intensity: 2.6, ambient: 1.6, position: [-9, 15, 8], exposure: 1.12, label: 'LATE AFTERNOON' },
+    overcast: { sun: '#e0e7e7', sky: '#c2ceca', intensity: .8, ambient: 2.2, position: [-5, 20, 2], exposure: 1.08, label: 'UNDER SOFT CLOUDS' },
+  };
+  const configuration = configurations[lighting];
+  sunlight.color.set(configuration.sun); sunlight.intensity = configuration.intensity; sunlight.position.fromArray(configuration.position);
+  hemisphere.intensity = configuration.ambient; fillLight.intensity = lighting === 'overcast' ? 1 : .65;
+  scene.background.set(configuration.sky); scene.fog.color.set(configuration.sky); renderer.toneMappingExposure = configuration.exposure;
+  document.querySelector('#light-label').textContent = configuration.label;
+  document.querySelectorAll('[data-light]').forEach(function markLighting(button) { button.classList.toggle('active', button.dataset.light === lighting); button.setAttribute('aria-pressed', String(button.dataset.light === lighting)); });
+}
+
+function clearGhost() {
+  if (!ghostStone) return;
+  ghostStone.traverse(function disposeGhostMaterial(child) { if (child.isMesh) child.material.dispose(); });
+  disposeStone(ghostStone); ghostStone = null;
+}
+
+function makeGhost() {
+  clearGhost();
+  ghostStone = createStone({ positionX: 0, positionZ: 0, shape: chosenStoneShape, size: chosenStoneSize, seed: 87, rotation: 0 }, rockMaterial, mossMaterial);
+  ghostStone.traverse(function ghostMaterial(child) { if (child.isMesh) { child.material = child.material.clone(); child.material.transparent = true; child.material.opacity = .42; child.material.depthWrite = false; child.castShadow = false; } });
+  ghostStone.visible = false; scene.add(ghostStone);
+}
+
+function setTool(tool) {
+  renderRequested = true;
+  activeTool = tool;
+  document.querySelectorAll('[data-tool]').forEach(function markTool(button) { button.classList.toggle('active', button.dataset.tool === tool); button.setAttribute('aria-pressed', String(button.dataset.tool === tool)); });
+  document.querySelector('#tool-heading').textContent = toolDescriptions[tool][0];
+  document.querySelector('#tool-description').textContent = toolDescriptions[tool][1];
+  document.querySelector('#brush-settings').hidden = tool === 'stone';
+  document.querySelector('#stone-settings').hidden = tool !== 'stone';
+  document.querySelector('#panel-kicker').textContent = tool === 'stone' ? 'COMPOSE IN STONE' : 'MAKE YOUR MARK';
+  canvas.style.cursor = tool === 'stone' ? 'copy' : 'crosshair';
+  selectedStone = null;
+  if (tool === 'stone') makeGhost(); else clearGhost();
+}
+
+function updateDiameter(value) {
+  renderRequested = true;
+  brushDiameter = clamp(Number(value), .4, 4.5);
+  document.querySelector('#diameter').value = brushDiameter;
+  document.querySelector('#diameter-label').textContent = `${brushDiameter.toFixed(2)} m`;
+}
+
+function updatePointer(event) {
+  renderRequested = true;
+  const rectangle = canvas.getBoundingClientRect();
+  pointerPosition.set((event.clientX - rectangle.left) / rectangle.width * 2 - 1, -((event.clientY - rectangle.top) / rectangle.height) * 2 + 1);
+  lastPointerPosition.set(event.clientX, event.clientY);
+}
+
+function terrainIntersection() {
+  raycaster.setFromCamera(pointerPosition, camera);
+  const point = raycaster.ray.intersectPlane(interactionPlane, new THREE.Vector3());
+  if (!point || Math.abs(point.x) > 12 || Math.abs(point.z) > 5.75) return null;
+  return point;
+}
+
+function stoneIntersection() {
+  raycaster.setFromCamera(pointerPosition, camera);
+  const intersections = raycaster.intersectObjects(stoneGroup.children, true);
+  return intersections.length ? intersections[0].object.parent : null;
+}
+
+function updateBrushVisual(point) {
+  for (let segmentIndex = 0; segmentIndex <= 128; segmentIndex++) {
+    const angle = segmentIndex / 128 * Math.PI * 2;
+    const worldX = point.x + Math.cos(angle) * brushDiameter / 2;
+    const worldZ = point.z + Math.sin(angle) * brushDiameter / 2;
+    brushPositions[segmentIndex * 3] = worldX;
+    brushPositions[segmentIndex * 3 + 1] = .035;
+    brushPositions[segmentIndex * 3 + 2] = worldZ;
+  }
+  brushGeometry.attributes.position.needsUpdate = true;
+  brushGeometry.computeBoundingSphere();
+}
+
+function stampStroke(point, elapsedSeconds) {
+  if (!lastStrokePoint) lastStrokePoint = point.clone();
+  const movementX = point.x - lastStrokePoint.x;
+  const movementZ = point.z - lastStrokePoint.z;
+  const movementDistance = Math.hypot(movementX, movementZ);
+  if (movementDistance > .002) strokeDirection.set(movementX, movementZ).normalize();
+  if (activeTool === 'push' && movementDistance < .002) return;
+  const stampCount = Math.max(1, Math.ceil(movementDistance / Math.min(.09, brushDiameter * .12)));
+  for (let stampIndex = 1; stampIndex <= stampCount; stampIndex++) {
+    const fraction = stampIndex / stampCount;
+    applyBrush(heights, { worldX: lastStrokePoint.x + movementX * fraction, worldZ: lastStrokePoint.z + movementZ * fraction, radius: brushDiameter / 2, pressure: brushPressure, tool: activeTool, directionX: strokeDirection.x, directionZ: strokeDirection.y, elapsedSeconds: Math.min(.05, elapsedSeconds) / stampCount });
+  }
+  lastStrokePoint.copy(point); terrainNeedsUpdate = true;
+}
+
+canvas.addEventListener('pointerdown', function beginGesture(event) {
+  if (event.button !== 0 || isContemplating) return;
+  updatePointer(event); pointerIsInside = true;
+  const point = terrainIntersection();
+  if (!point) return;
+  canvas.setPointerCapture(event.pointerId);
+  if (activeTool === 'stone') {
+    const hitStone = stoneIntersection();
+    rememberGarden();
+    if (hitStone) { selectedStone = hitStone; draggedStone = hitStone; canvas.style.cursor = 'grabbing'; }
+    else {
+      if (stoneGroup.children.length >= 80) { history.pop(); showToast('Let the stones breathe. Move or remove one first.'); return; }
+      const position = clampStonePosition(point.x, point.z, chosenStoneSize);
+      selectedStone = addStone({ positionX: position.x, positionZ: position.z, shape: chosenStoneShape, size: chosenStoneSize, rotation: ghostStone ? ghostStone.rotation.y : 0, seed: 100 + Math.floor(Math.random() * 100000) });
+      renderer.shadowMap.needsUpdate = true;
+      showToast('A new island. R to rotate; drag to move.');
+    }
+  } else { rememberGarden(); isSculpting = true; lastStrokePoint = point.clone(); }
+});
+
+function clampStonePosition(worldX, worldZ, size) { return { x: clamp(worldX, -11.7 + size, 11.7 - size), z: clamp(worldZ, -5.45 + size * .8, 5.45 - size * .8) }; }
+
+canvas.addEventListener('pointermove', function movePointer(event) {
+  updatePointer(event); pointerIsInside = true;
+  if (draggedStone) {
+    const point = terrainIntersection();
+    if (point) {
+      const position = clampStonePosition(point.x, point.z, draggedStone.userData.definition.size);
+      draggedStone.position.x = position.x; draggedStone.position.z = position.z;
+      draggedStone.position.y = sampleHeight(heights, position.x, position.z);
+      draggedStone.userData.definition.positionX = position.x; draggedStone.userData.definition.positionZ = position.z;
+      renderer.shadowMap.needsUpdate = true;
+    }
+  }
+});
+
+function endGesture() { isSculpting = false; draggedStone = null; lastStrokePoint = null; canvas.style.cursor = activeTool === 'stone' ? 'copy' : 'crosshair'; }
+window.addEventListener('pointerup', endGesture);
+canvas.addEventListener('pointercancel', endGesture);
+canvas.addEventListener('lostpointercapture', endGesture);
+window.addEventListener('blur', function loseFocus() { endGesture(); pointerIsInside = false; });
+canvas.addEventListener('pointerleave', function leaveGarden() { pointerIsInside = false; renderRequested = true; });
+canvas.addEventListener('contextmenu', function preventMenu(event) { event.preventDefault(); });
+
+document.querySelectorAll('[data-tool]').forEach(function connectTool(button) { button.addEventListener('click', function chooseTool() { setTool(button.dataset.tool); }); });
+document.querySelectorAll('[data-shape]').forEach(function connectShape(button) { button.addEventListener('click', function chooseShape() {
+  chosenStoneShape = button.dataset.shape;
+  document.querySelectorAll('[data-shape]').forEach(function markShape(shapeButton) { shapeButton.classList.toggle('active', shapeButton === button); });
+  makeGhost();
+}); });
+document.querySelectorAll('[data-light]').forEach(function connectLighting(button) { button.addEventListener('click', function changeLight() { setLighting(button.dataset.light); }); });
+document.querySelector('#diameter').addEventListener('input', function changeDiameter(event) { updateDiameter(event.target.value); });
+document.querySelector('#strength').addEventListener('input', function changePressure(event) { brushPressure = Number(event.target.value) / 100; document.querySelector('#strength-label').textContent = `${event.target.value}%`; });
+document.querySelector('#stone-size').addEventListener('input', function changeStoneSize(event) {
+  chosenStoneSize = Number(event.target.value); document.querySelector('#stone-size-label').textContent = `${chosenStoneSize.toFixed(1)}×`; makeGhost();
+});
+document.querySelector('#undo-button').addEventListener('click', undo);
+document.querySelector('#save-button').addEventListener('click', function saveGarden() {
+  try { localStorage.setItem(storageKey, JSON.stringify(serializeGarden())); document.querySelector('#save-status').textContent = 'Saved in this browser. Come back whenever.'; showToast('This moment is yours to return to.'); }
+  catch { showToast('Browser storage is unavailable. Your garden is still here for this visit.'); }
+});
+
+const guideDialog = document.querySelector('#guide-dialog');
+document.querySelector('#help-button').addEventListener('click', function openGuide() { guideDialog.showModal(); });
+guideDialog.querySelector('.dialog-close').addEventListener('click', function closeGuide() { guideDialog.close(); });
+const resetDialog = document.querySelector('#reset-dialog');
+document.querySelector('#reset-button').addEventListener('click', function openReset() { resetDialog.showModal(); });
+document.querySelector('#cancel-reset').addEventListener('click', function cancelReset() { resetDialog.close(); });
+document.querySelector('#confirm-reset').addEventListener('click', function resetGarden() { rememberGarden(); restoreGarden({ heights: createInitialHeights(originalStones), stones: originalStones }); resetDialog.close(); showToast('A fresh beginning.'); });
+document.querySelector('#clear-button').addEventListener('click', function clearGarden() {
+  rememberGarden();
+  restoreGarden({ heights: new Float32Array(COLUMN_COUNT * ROW_COUNT), stones: [] });
+  showToast('An open space. Undo brings everything back.');
+});
+
+const toolDock = document.querySelector('#tool-dock');
+const toolSign = document.querySelector('#tool-sign');
+document.querySelector('#tool-panel').append(document.querySelector('.header-actions'));
+let closeToolsTimeout;
+function openTools() {
+  clearTimeout(closeToolsTimeout);
+  document.body.classList.add('tools-open'); toolSign.setAttribute('aria-expanded', 'true');
+  document.querySelector('#tool-panel').inert = false;
+  document.querySelector('.toolbar').inert = false;
+}
+function closeTools() {
+  document.body.classList.remove('tools-open'); toolSign.setAttribute('aria-expanded', 'false');
+  document.querySelector('#tool-panel').inert = true;
+  document.querySelector('.toolbar').inert = true;
+}
+toolDock.addEventListener('pointerenter', function revealTools(event) { if (event.pointerType !== 'touch') openTools(); });
+toolDock.addEventListener('pointerleave', function foldTools() { closeToolsTimeout = setTimeout(closeTools, 250); });
+toolDock.addEventListener('focusin', openTools);
+toolDock.addEventListener('focusout', function leaveTools(event) { if (!toolDock.contains(event.relatedTarget)) closeToolsTimeout = setTimeout(closeTools, 250); });
+toolSign.addEventListener('click', openTools);
+canvas.addEventListener('pointerdown', closeTools);
+closeTools();
+
+let viewTransition = null;
+function configureViewLimits() {
+  controls.minDistance = isElevatedView ? 9 : 9.5;
+  controls.maxDistance = isElevatedView ? 23 : 12.3;
+  controls.minPolarAngle = isElevatedView ? .17 : 1.34;
+  controls.maxPolarAngle = isElevatedView ? 1.15 : 1.44;
+  controls.minAzimuthAngle = isElevatedView ? -.95 : -.36;
+  controls.maxAzimuthAngle = isElevatedView ? .95 : .36;
+}
+document.querySelector('#view-button').addEventListener('click', function changeView() {
+  isElevatedView = !isElevatedView;
+  temple.visible = !isElevatedView;
+  renderer.shadowMap.needsUpdate = true; renderRequested = true;
+  controls.minDistance = 5; controls.maxDistance = 24;
+  controls.minPolarAngle = .17; controls.maxPolarAngle = 1.5;
+  viewTransition = { startPosition: camera.position.clone(), startTarget: controls.target.clone(), endPosition: new THREE.Vector3(...(isElevatedView ? [0, 14, 12.5] : [.6, 2.7, 11.25])), endTarget: new THREE.Vector3(0, .2, -.6), elapsed: 0 };
+  // The veranda roof is behind the elevated camera's sightline once it rises.
+  document.querySelector('#view-button').innerHTML = `${isElevatedView ? 'Above the garden' : 'On the veranda'} <span>⇄</span>`;
+});
+
+function setContemplating(value) {
+  renderRequested = true;
+  isContemplating = value; endGesture(); document.body.classList.toggle('contemplating', value); document.querySelector('#return-button').hidden = !value;
+  controls.mouseButtons.LEFT = value ? THREE.MOUSE.ROTATE : null;
+  controls.touches.ONE = value ? THREE.TOUCH.ROTATE : null;
+  canvas.style.cursor = value ? 'grab' : 'crosshair';
+  if (value) showToast('Just sit for a while.');
+}
+document.querySelector('#contemplate-button').addEventListener('click', function contemplate() { setContemplating(true); });
+document.querySelector('#return-button').addEventListener('click', function returnToTools() { setContemplating(false); });
+
+window.addEventListener('keydown', function handleKey(event) {
+  if (guideDialog.open || resetDialog.open) return;
+  if (event.key === 'Escape') { setContemplating(false); closeTools(); return; }
+  if (event.target.matches('input, textarea, select') || isContemplating) return;
+  if (event.key === '[' || event.key === ']') { event.preventDefault(); updateDiameter(brushDiameter + (event.key === '[' ? -.15 : .15)); }
+  if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'z') { event.preventDefault(); undo(); return; }
+  if (/^[1-6]$/.test(event.key)) setTool(['rake', 'raise', 'press', 'push', 'smooth', 'stone'][Number(event.key) - 1]);
+  if (event.key.toLowerCase() === 'r' && activeTool === 'stone') {
+    renderer.shadowMap.needsUpdate = true; renderRequested = true;
+    if (selectedStone) { rememberGarden(); selectedStone.rotation.y += Math.PI / 9; selectedStone.userData.definition.rotation = selectedStone.rotation.y; }
+    else if (ghostStone) ghostStone.rotation.y += Math.PI / 9;
+  }
+  if ((event.key === 'Delete' || event.key === 'Backspace') && selectedStone && activeTool === 'stone') { event.preventDefault(); rememberGarden(); disposeStone(selectedStone); selectedStone = null; updateStoneCount(); showToast('A little more space.'); }
+});
+
+let audioContext = null;
+let soundEnabled = false;
+let ambienceGain;
+document.querySelector('#sound-button').addEventListener('click', async function toggleSound() {
+  if (!audioContext) {
+    audioContext = new AudioContext();
+    const buffer = audioContext.createBuffer(1, audioContext.sampleRate * 8, audioContext.sampleRate);
+    const samples = buffer.getChannelData(0); const randomNumber = seededRandom(19); let previousSample = 0;
+    for (let sampleIndex = 0; sampleIndex < samples.length; sampleIndex++) { previousSample = (previousSample + (randomNumber() * 2 - 1) * .018) / 1.018; samples[sampleIndex] = previousSample * 3; }
+    const noise = audioContext.createBufferSource(); noise.buffer = buffer; noise.loop = true;
+    const filter = audioContext.createBiquadFilter(); filter.type = 'lowpass'; filter.frequency.value = 650;
+    ambienceGain = audioContext.createGain(); ambienceGain.gain.value = 0;
+    noise.connect(filter); filter.connect(ambienceGain); ambienceGain.connect(audioContext.destination); noise.start();
+  }
+  await audioContext.resume(); soundEnabled = !soundEnabled;
+  ambienceGain.gain.setTargetAtTime(soundEnabled ? .3 : 0, audioContext.currentTime, .6);
+  document.querySelector('#sound-button').style.background = soundEnabled ? '#a9b38355' : '';
+  document.querySelector('#sound-button').setAttribute('aria-label', soundEnabled ? 'Disable ambient sound' : 'Enable ambient sound');
+  showToast(soundEnabled ? 'A breeze through the trees.' : 'Quiet again.');
+});
+
+window.addEventListener('resize', function resizeGarden() {
+  renderRequested = true;
+  camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); renderer.setSize(innerWidth, innerHeight); composer.setSize(innerWidth, innerHeight);
+  ambientOcclusion.setSize(Math.ceil(innerWidth * .65), Math.ceil(innerHeight * .65));
+});
+canvas.addEventListener('webglcontextlost', function contextLost(event) { event.preventDefault(); showToast('The graphics context paused. Reload to return to your last saved garden.'); });
+
+for (const definition of originalStones) addStone(definition);
+try {
+  const serialized = localStorage.getItem(storageKey);
+  if (serialized) {
+    const saved = JSON.parse(serialized);
+    if (validateSavedGarden(saved)) { restoreGarden(saved); setLighting(['morning', 'afternoon', 'overcast'].includes(saved.lighting) ? saved.lighting : 'afternoon'); document.querySelector('#save-status').textContent = 'Welcome back to your garden.'; }
+  }
+} catch { /* Storage may be disabled; the garden remains fully playable. */ }
+updateTerrain(); setTool('rake');
+document.querySelector('#undo-button').disabled = true;
+const frameClock = new THREE.Clock();
+let frameCount = 0;
+function animate() {
+  requestAnimationFrame(animate);
+  const frameDuration = frameClock.getDelta();
+  const elapsedSeconds = Math.min(frameDuration, .06);
+  if (viewTransition) {
+    viewTransition.elapsed += frameDuration;
+    const fraction = Math.min(1, viewTransition.elapsed / 1.1);
+    const easedFraction = fraction * fraction * (3 - 2 * fraction);
+    camera.position.lerpVectors(viewTransition.startPosition, viewTransition.endPosition, easedFraction);
+    controls.target.lerpVectors(viewTransition.startTarget, viewTransition.endTarget, easedFraction);
+    if (fraction === 1) { viewTransition = null; configureViewLimits(); }
+  }
+  const cameraChanged = controls.update();
+  if (terrainNeedsUpdate) updateTerrain();
+  const point = pointerIsInside && !isContemplating ? terrainIntersection() : null;
+  brushRing.visible = !!point && activeTool !== 'stone';
+  if (point && activeTool !== 'stone') {
+    updateBrushVisual(point);
+    if (isSculpting) stampStroke(point, elapsedSeconds);
+  }
+  if (ghostStone) {
+    ghostStone.visible = !!point && !isContemplating && !draggedStone && !stoneIntersection();
+    if (point) { const position = clampStonePosition(point.x, point.z, chosenStoneSize); ghostStone.position.set(position.x, sampleHeight(heights, position.x, position.z), position.z); }
+  }
+  selectionRing.visible = !!selectedStone && !isContemplating;
+  if (selectedStone) { selectionRing.position.copy(selectedStone.position); selectionRing.position.y += .08; selectionRing.scale.setScalar(selectedStone.userData.definition.size * 1.4); }
+  if (frameCount < 3 || renderRequested || cameraChanged || isSculpting || viewTransition) {
+    composer.render(); renderRequested = false;
+  }
+  frameCount++;
+  if (frameCount === 3) { const loading = document.querySelector('#loading'); loading.style.opacity = '0'; setTimeout(function removeLoading() { loading.hidden = true; renderRequested = true; }, 850); }
+}
+animate();
+
+// Read-only diagnostics for the local browser verification harness. Bundled
+// application entry-point exports are removed by the production build.
+export function inspectGarden() {
+  const point = terrainIntersection();
+  return { cameraPosition: camera.position.toArray(), groundPoint: point ? point.toArray() : null, isElevatedView, stoneCount: stoneGroup.children.length, minimumPolarAngle: controls.minPolarAngle };
+}
