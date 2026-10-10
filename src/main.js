@@ -547,7 +547,7 @@ function animate() {
   }
   selectionRing.visible = !!selectedStone && !isContemplating;
   if (selectedStone) { selectionRing.position.copy(selectedStone.position); selectionRing.position.y += .08; selectionRing.scale.setScalar(selectedStone.userData.definition.size * 1.4); }
-  if (frameCount < 3 || renderRequested || cameraChanged || isSculpting || viewTransition) {
+  if (frameCount < 3 || renderRequested || cameraChanged || (isSculpting && activeTool !== 'rake') || viewTransition) {
     composer.render(); renderRequested = false;
   }
   frameCount++;
