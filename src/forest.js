@@ -27,14 +27,14 @@ export function createForest(scene, createLeafTexture, randomNumber) {
     mesh.castShadow = true; mesh.receiveShadow = true; scene.add(mesh);
   }
 
-  function crown(species, centerX, centerY, centerZ, radiusX, radiusY, radiusZ, sprayCount, hue, lightness) {
+  function crown(species, centerX, centerY, centerZ, radiusX, radiusY, radiusZ, sprayCount, hue, lightness, autumnHue = .06) {
     // Dark, opaque inner foliage prevents pale sky from showing through every
     // leaf card. Its small irregular lobes are buried under the outer sprays.
     for (let lobeIndex = 0; lobeIndex < 3; lobeIndex++) {
       const lobeAngle = lobeIndex * Math.PI * 2 / 3 + randomNumber();
       canopyCores.push({
         position: [centerX + Math.cos(lobeAngle) * radiusX * .25, centerY + (randomNumber() - .5) * radiusY * .3, centerZ + Math.sin(lobeAngle) * radiusZ * .25],
-        scale: [radiusX * .61, radiusY * .72, radiusZ * .61], hue, lightness: lightness * .57,
+        scale: [radiusX * .61, radiusY * .72, radiusZ * .61], species, hue, autumnHue, lightness: lightness * .57,
       });
     }
     const instances = foliageBatches.get(species).instances;
@@ -47,8 +47,7 @@ export function createForest(scene, createLeafTexture, randomNumber) {
       transform.position.set(centerX + Math.cos(azimuth) * horizontalFactor * radiusX, centerY + elevation * radialFactor * radiusY, centerZ + Math.sin(azimuth) * horizontalFactor * radiusZ);
       transform.rotation.set((randomNumber() - .5) * 1.8, randomNumber() * Math.PI * 2, (randomNumber() - .5) * 1.3);
       transform.scale.set(spraySize * 1.25, spraySize, 1); transform.updateMatrix();
-      foliageColor.setHSL(hue + (randomNumber() - .5) * .025, species === 'maple' ? .34 : .25, lightness + (randomNumber() - .5) * .12);
-      instances.push({ matrix: transform.matrix.clone(), color: foliageColor.clone() });
+      instances.push({ matrix: transform.matrix.clone(), species, hue: hue + (randomNumber() - .5) * .018, autumnHue: autumnHue + (randomNumber() - .5) * .014, lightness: lightness + (randomNumber() - .5) * .09 });
     }
   }
 
@@ -59,7 +58,7 @@ export function createForest(scene, createLeafTexture, randomNumber) {
       const centerX = -37 + shrubIndex * 2.15 + (randomNumber() - .5) * .7;
       const centerZ = -9.6 - bandIndex * 3.7 - randomNumber() * 1.1;
       const shrubHeight = 2.5 + randomNumber() * 1.4 + bandIndex * .4;
-      crown('broadleaf', centerX, shrubHeight * .47, centerZ, 1.6 + randomNumber() * .7, shrubHeight * .68, 1.6, 75, .255, .30 - bandIndex * .025);
+      crown('broadleaf', centerX, shrubHeight * .47, centerZ, 2 + randomNumber() * .8, shrubHeight * .72, 1.9, 85, .22 + randomNumber() * .095, .27 + randomNumber() * .075 - bandIndex * .025);
     }
   }
   for (const side of [-1, 1]) {
@@ -69,20 +68,22 @@ export function createForest(scene, createLeafTexture, randomNumber) {
   }
 
   // Spreading maples: leaning trunks and separated, broad, shallow crowns.
-  for (let treeIndex = 0; treeIndex < 16; treeIndex++) {
-    const trunkX = -35 + treeIndex * 4.6 + (randomNumber() - .5) * 1.7;
+  for (let treeIndex = 0; treeIndex < 11; treeIndex++) {
+    const trunkX = -35 + treeIndex * 7 + (randomNumber() - .5) * 2.3;
     const trunkZ = -14.5 - randomNumber() * 4;
-    const treeHeight = 5.0 + randomNumber() * 2.5;
+    const treeHeight = 5.6 + randomNumber() * 3.4;
     const trunkLean = (randomNumber() - .5) * 1.3;
     const junction = new THREE.Vector3(trunkX + trunkLean, treeHeight * .64, trunkZ);
     branch(new THREE.Vector3(trunkX, -.7, trunkZ), junction, .20);
-    const hue = treeIndex % 5 === 2 ? .105 : .235;
+    const hue = .20 + randomNumber() * .11;
+    const treeLightness = .32 + randomNumber() * .09;
+    const autumnHue = [.005, .035, .075, .12][treeIndex % 4];
     for (let branchIndex = 0; branchIndex < 4; branchIndex++) {
       const azimuth = branchIndex * 2.4 + treeIndex;
-      const reach = 1.2 + randomNumber() * 1.4;
+      const reach = 1.8 + randomNumber() * 1.7;
       const crownCenter = new THREE.Vector3(junction.x + Math.cos(azimuth) * reach, treeHeight - .6 + randomNumber() * 1.4, trunkZ + Math.sin(azimuth) * reach);
       branch(junction, crownCenter, .065);
-      crown('maple', crownCenter.x, crownCenter.y, crownCenter.z, 2.2 + randomNumber() * .6, .85 + randomNumber() * .3, 1.8, 80, hue, .35);
+      crown('maple', crownCenter.x, crownCenter.y, crownCenter.z, 3.1 + randomNumber() * 1.1, 1.55 + randomNumber() * .7, 2.8, 160, hue, treeLightness, autumnHue);
     }
   }
 
@@ -90,28 +91,32 @@ export function createForest(scene, createLeafTexture, randomNumber) {
   for (let treeIndex = 0; treeIndex < 10; treeIndex++) {
     const trunkX = -34 + treeIndex * 7.4 + randomNumber() * 1.6;
     const trunkZ = -21 - randomNumber() * 4;
-    const treeHeight = 7.8 + randomNumber() * 3;
+    const treeHeight = 12 + randomNumber() * 5;
+    const treeHue = .28 + randomNumber() * .09;
+    const treeLightness = .25 + randomNumber() * .075;
     const junction = new THREE.Vector3(trunkX + .7, treeHeight * .60, trunkZ);
     branch(new THREE.Vector3(trunkX, -.7, trunkZ), junction, .25);
     for (let tierIndex = 0; tierIndex < 4; tierIndex++) {
       const azimuth = tierIndex * 2.8 + treeIndex;
-      const reach = 2.5 - tierIndex * .35;
-      const crownCenter = new THREE.Vector3(junction.x + Math.cos(azimuth) * reach, treeHeight * .62 + tierIndex * .9, trunkZ + Math.sin(azimuth) * reach);
+      const reach = 3.4 - tierIndex * .4;
+      const crownCenter = new THREE.Vector3(junction.x + Math.cos(azimuth) * reach, treeHeight * .60 + tierIndex * 1.5, trunkZ + Math.sin(azimuth) * reach);
       branch(junction, crownCenter, .075);
-      crown('conifer', crownCenter.x, crownCenter.y, crownCenter.z, 2.5 - tierIndex * .28, .65, 1.65, 65, .30, .27);
+      crown('conifer', crownCenter.x, crownCenter.y, crownCenter.z, 3.3 - tierIndex * .3, 1.15, 2.4, 110, treeHue, treeLightness);
     }
   }
 
   // Rear cedars: tall tapering silhouettes in overlapping, cooler green tiers.
-  for (let treeIndex = 0; treeIndex < 27; treeIndex++) {
-    const trunkX = -43 + treeIndex * 3.35 + (randomNumber() - .5) * 1.4;
+  for (let treeIndex = 0; treeIndex < 20; treeIndex++) {
+    const trunkX = -43 + treeIndex * 4.6 + (randomNumber() - .5) * 1.4;
     const trunkZ = -29 - randomNumber() * 7;
-    const treeHeight = 10 + randomNumber() * 6;
+    const treeHeight = 18 + randomNumber() * 8;
+    const treeHue = .28 + randomNumber() * .095;
+    const treeLightness = .23 + randomNumber() * .08;
     branch(new THREE.Vector3(trunkX, -.7, trunkZ), new THREE.Vector3(trunkX, treeHeight, trunkZ), .24);
-    for (let tierIndex = 0; tierIndex < 6; tierIndex++) {
-      const tierFraction = tierIndex / 5;
-      const crownRadius = 2.65 * (1 - tierFraction * .82);
-      crown('conifer', trunkX, treeHeight * (.32 + tierFraction * .65), trunkZ, crownRadius, 1.15 - tierFraction * .45, crownRadius, 42, .31, .265);
+    for (let tierIndex = 0; tierIndex < 8; tierIndex++) {
+      const tierFraction = tierIndex / 7;
+      const crownRadius = 3.7 * (1 - tierFraction * .85);
+      crown('conifer', trunkX, treeHeight * (.25 + tierFraction * .73), trunkZ, crownRadius, 2.2 - tierFraction * 1.05, crownRadius, 70, treeHue, treeLightness);
     }
   }
 
@@ -132,6 +137,7 @@ export function createForest(scene, createLeafTexture, randomNumber) {
     const core = canopyCores[coreIndex];
     transform.position.fromArray(core.position); transform.scale.fromArray(core.scale); transform.rotation.set(0, coreIndex * 2.4, 0); transform.updateMatrix();
     cores.setMatrixAt(coreIndex, transform.matrix);
+    core.matrix = transform.matrix.clone();
     foliageColor.setHSL(core.hue, .27, core.lightness); cores.setColorAt(coreIndex, foliageColor);
   }
   cores.castShadow = true; cores.receiveShadow = true; scene.add(cores);
@@ -140,9 +146,41 @@ export function createForest(scene, createLeafTexture, randomNumber) {
     foliage.name = `${species} foliage`;
     for (let instanceIndex = 0; instanceIndex < batch.instances.length; instanceIndex++) {
       foliage.setMatrixAt(instanceIndex, batch.instances[instanceIndex].matrix);
-      foliage.setColorAt(instanceIndex, batch.instances[instanceIndex].color);
+      foliageColor.setHSL(batch.instances[instanceIndex].hue, .38, batch.instances[instanceIndex].lightness);
+      foliage.setColorAt(instanceIndex, foliageColor);
     }
     foliage.castShadow = true; foliage.receiveShadow = true; scene.add(foliage);
+    batch.mesh = foliage;
   }
   trunkGeometry.dispose();
+  function seasonalColor(instance, season, isCore) {
+    let hue = instance.hue;
+    let saturation = instance.species === 'maple' ? .48 : .32;
+    let lightness = instance.lightness;
+    if (instance.species === 'maple') {
+      if (season === 'autumn') { hue = instance.autumnHue; saturation = .78; lightness *= 1.12; }
+      if (season === 'spring') { hue -= .035; saturation = .55; lightness *= 1.16; }
+    } else {
+      if (season === 'spring') { hue -= .012; lightness *= 1.07; }
+      if (season === 'winter') { saturation *= .74; lightness *= .90; }
+    }
+    foliageColor.setHSL(hue, saturation, lightness * (isCore ? 1.15 : 1));
+    return foliageColor;
+  }
+  const hiddenMatrix = new THREE.Matrix4().makeScale(0, 0, 0);
+  function setSeason(season) {
+    for (let coreIndex = 0; coreIndex < canopyCores.length; coreIndex++) {
+      const core = canopyCores[coreIndex];
+      cores.setColorAt(coreIndex, seasonalColor(core, season, true));
+      cores.setMatrixAt(coreIndex, season === 'winter' && core.species === 'maple' ? hiddenMatrix : core.matrix);
+    }
+    cores.instanceColor.needsUpdate = true; cores.instanceMatrix.needsUpdate = true;
+    for (const [species, batch] of foliageBatches) {
+      batch.mesh.visible = !(season === 'winter' && species === 'maple');
+      for (let instanceIndex = 0; instanceIndex < batch.instances.length; instanceIndex++) batch.mesh.setColorAt(instanceIndex, seasonalColor(batch.instances[instanceIndex], season, false));
+      batch.mesh.instanceColor.needsUpdate = true;
+    }
+  }
+  setSeason('summer');
+  return { setSeason };
 }

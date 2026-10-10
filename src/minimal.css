@@ -18,6 +18,8 @@
 .tool-dock .outline-button{border-color:#8b947354;color:#687451;font-size:9px;padding:9px 11px}
 .tool-dock .outline-button span{margin-left:9px}
 .tool-dock .garden-actions button{font-size:8px}
+.tool-dock .setting-row label{margin:0;font:inherit;color:inherit}
+#season{font:inherit;font-size:11px;color:#687451;border:1px solid #8b947354;border-radius:3px;padding:6px 8px;background:#f3f0e6}
 .contemplating .tool-dock{display:none}
 #toast{bottom:35px;max-width:calc(100% - 190px);text-align:center;line-height:1.6}
 @media(max-width:700px){

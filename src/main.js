@@ -5,7 +5,7 @@ import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { SSAOPass } from 'three/addons/postprocessing/SSAOPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { createGardenScene, createStone, originalStones, seededRandom } from './scene.js';
-import { createInitialHeights, applyBrush, sampleHeight, clamp, COLUMN_COUNT, ROW_COUNT } from './terrain.js';
+import { createInitialHeights, applyBrush, sampleHeight, clamp, COLUMN_COUNT, ROW_COUNT, RAKE_TOOTH_SPACING, RAKE_HALF_DEPTH } from './terrain.js';
 import './style.css';
 import './minimal.css';
 
@@ -27,7 +27,7 @@ renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = 1.12;
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 
-const { scene, sand, sunlight, hemisphere, fillLight, rockMaterial, mossMaterial, temple } = createGardenScene();
+const { scene, sand, sunlight, hemisphere, fillLight, rockMaterial, mossMaterial, temple, forest } = createGardenScene();
 let renderRequested = true;
 const camera = new THREE.PerspectiveCamera(64, innerWidth / innerHeight, .1, 150);
 camera.position.set(.6, 2.7, 11.25);
@@ -60,6 +60,7 @@ let brushPressure = .45;
 let chosenStoneShape = 'spire';
 let chosenStoneSize = 1;
 let chosenLighting = 'afternoon';
+let chosenSeason = 'summer';
 let isElevatedView = false;
 let isContemplating = false;
 let isSculpting = false;
@@ -69,6 +70,9 @@ let pointerIsInside = false;
 let terrainNeedsUpdate = true;
 let strokeDirection = new THREE.Vector2(1, 0);
 let lastStrokePoint = null;
+let lastRakeHoverPoint = null;
+let rakeStrokeHasMoved = false;
+let rakeReferenceHeights = null;
 let lastPointerPosition = new THREE.Vector2();
 const pointerPosition = new THREE.Vector2(2, 2);
 const raycaster = new THREE.Raycaster();
@@ -77,7 +81,7 @@ const interactionPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
 const history = [];
 const storageKey = 'ryoanji-garden-v1';
 const toolDescriptions = {
-  rake: ['Rake the gravel', 'Trace a path. Let the lines follow your hand.'],
+  rake: ['Rake the gravel', 'Pull the toothed bar. It turns with your hand.'],
   raise: ['Lift a landscape', 'Build a gentle rise with a patient hand.'],
   press: ['Make a hollow', 'Press into the gravel. Give the light a place to rest.'],
   push: ['Move like water', 'Drag to carry sand forward, leaving a hollow behind.'],
@@ -90,6 +94,11 @@ const brushPositions = new Float32Array(129 * 3);
 brushGeometry.setAttribute('position', new THREE.BufferAttribute(brushPositions, 3));
 const brushRing = new THREE.Line(brushGeometry, new THREE.LineBasicMaterial({ color: '#f8f6da', transparent: true, opacity: .9, depthTest: false }));
 brushRing.renderOrder = 5; scene.add(brushRing); brushRing.visible = false;
+const rakeGeometry = new THREE.BufferGeometry();
+const rakePositions = new Float32Array(256 * 3);
+rakeGeometry.setAttribute('position', new THREE.BufferAttribute(rakePositions, 3));
+const rakeBar = new THREE.LineSegments(rakeGeometry, brushRing.material);
+rakeBar.renderOrder = 5; rakeBar.visible = false; scene.add(rakeBar);
 const selectionRing = new THREE.Mesh(new THREE.RingGeometry(.92, .935, 80), new THREE.MeshBasicMaterial({ color: '#e2cb8f', side: THREE.DoubleSide, transparent: true, opacity: .9, depthTest: false }));
 selectionRing.rotation.x = -Math.PI / 2; selectionRing.visible = false; selectionRing.renderOrder = 6; scene.add(selectionRing);
 let ghostStone = null;
@@ -116,7 +125,7 @@ function addStone(definition) {
 }
 
 function serializeGarden() {
-  return { version: 1, heights: Array.from(heights), stones: stoneGroup.children.map(function readStone(stone) { return { ...stone.userData.definition }; }), lighting: chosenLighting };
+  return { version: 1, heights: Array.from(heights), stones: stoneGroup.children.map(function readStone(stone) { return { ...stone.userData.definition }; }), lighting: chosenLighting, season: chosenSeason };
 }
 
 function rememberGarden() {
@@ -200,15 +209,24 @@ function makeGhost() {
 function setTool(tool) {
   renderRequested = true;
   activeTool = tool;
+  lastRakeHoverPoint = null;
   document.querySelectorAll('[data-tool]').forEach(function markTool(button) { button.classList.toggle('active', button.dataset.tool === tool); button.setAttribute('aria-pressed', String(button.dataset.tool === tool)); });
   document.querySelector('#tool-heading').textContent = toolDescriptions[tool][0];
   document.querySelector('#tool-description').textContent = toolDescriptions[tool][1];
   document.querySelector('#brush-settings').hidden = tool === 'stone';
+  document.querySelector('#diameter-caption').textContent = tool === 'rake' ? 'Rake width' : 'Brush diameter';
   document.querySelector('#stone-settings').hidden = tool !== 'stone';
   document.querySelector('#panel-kicker').textContent = tool === 'stone' ? 'COMPOSE IN STONE' : 'MAKE YOUR MARK';
   canvas.style.cursor = tool === 'stone' ? 'copy' : 'crosshair';
   selectedStone = null;
   if (tool === 'stone') makeGhost(); else clearGhost();
+}
+
+function setSeason(season) {
+  chosenSeason = ['spring', 'summer', 'autumn', 'winter'].includes(season) ? season : 'summer';
+  forest.setSeason(chosenSeason);
+  document.querySelector('#season').value = chosenSeason;
+  renderer.shadowMap.needsUpdate = true; renderRequested = true;
 }
 
 function updateDiameter(value) {
@@ -239,6 +257,26 @@ function stoneIntersection() {
 }
 
 function updateBrushVisual(point) {
+  if (activeTool === 'rake') {
+    let vertexCount = 0;
+    function addRakeVertex(lateralDistance, forwardDistance) {
+      rakePositions[vertexCount * 3] = point.x - strokeDirection.y * lateralDistance + strokeDirection.x * forwardDistance;
+      rakePositions[vertexCount * 3 + 1] = .035;
+      rakePositions[vertexCount * 3 + 2] = point.z + strokeDirection.x * lateralDistance + strokeDirection.y * forwardDistance;
+      vertexCount++;
+    }
+    addRakeVertex(-brushDiameter / 2, RAKE_HALF_DEPTH);
+    addRakeVertex(brushDiameter / 2, RAKE_HALF_DEPTH);
+    const toothCountPerSide = Math.floor((brushDiameter / 2 - .04) / RAKE_TOOTH_SPACING);
+    for (let toothIndex = -toothCountPerSide; toothIndex <= toothCountPerSide; toothIndex++) {
+      addRakeVertex(toothIndex * RAKE_TOOTH_SPACING, RAKE_HALF_DEPTH);
+      addRakeVertex(toothIndex * RAKE_TOOTH_SPACING, -RAKE_HALF_DEPTH);
+    }
+    rakeGeometry.setDrawRange(0, vertexCount);
+    rakeGeometry.attributes.position.needsUpdate = true;
+    rakeGeometry.computeBoundingSphere();
+    return;
+  }
   for (let segmentIndex = 0; segmentIndex <= 128; segmentIndex++) {
     const angle = segmentIndex / 128 * Math.PI * 2;
     const worldX = point.x + Math.cos(angle) * brushDiameter / 2;
@@ -256,6 +294,25 @@ function stampStroke(point, elapsedSeconds) {
   const movementX = point.x - lastStrokePoint.x;
   const movementZ = point.z - lastStrokePoint.z;
   const movementDistance = Math.hypot(movementX, movementZ);
+  if (activeTool === 'rake') {
+    if (movementDistance < .002) return;
+    const targetAngle = Math.atan2(movementZ, movementX);
+    const previousAngle = rakeStrokeHasMoved ? Math.atan2(strokeDirection.y, strokeDirection.x) : targetAngle;
+    // The bar is symmetric: choose the shortest rotation instead of flipping on a reversal.
+    let turnAngle = Math.atan2(Math.sin(targetAngle - previousAngle), Math.cos(targetAngle - previousAngle));
+    if (turnAngle > Math.PI / 2) turnAngle -= Math.PI;
+    if (turnAngle < -Math.PI / 2) turnAngle += Math.PI;
+    const stampCount = Math.max(1, Math.ceil((movementDistance + Math.abs(turnAngle) * brushDiameter / 2) / .04));
+    for (let stampIndex = 1; stampIndex <= stampCount; stampIndex++) {
+      const fraction = stampIndex / stampCount;
+      const stampAngle = previousAngle + turnAngle * fraction;
+      applyBrush(heights, { worldX: lastStrokePoint.x + movementX * fraction, worldZ: lastStrokePoint.z + movementZ * fraction, radius: brushDiameter / 2, pressure: brushPressure, tool: 'rake', directionX: Math.cos(stampAngle), directionZ: Math.sin(stampAngle), elapsedSeconds: movementDistance / stampCount, referenceHeights: rakeReferenceHeights });
+    }
+    strokeDirection.set(Math.cos(previousAngle + turnAngle), Math.sin(previousAngle + turnAngle));
+    rakeStrokeHasMoved = true;
+    lastStrokePoint.copy(point); terrainNeedsUpdate = true;
+    return;
+  }
   if (movementDistance > .002) strokeDirection.set(movementX, movementZ).normalize();
   if (activeTool === 'push' && movementDistance < .002) return;
   const stampCount = Math.max(1, Math.ceil(movementDistance / Math.min(.09, brushDiameter * .12)));
@@ -283,13 +340,25 @@ canvas.addEventListener('pointerdown', function beginGesture(event) {
       renderer.shadowMap.needsUpdate = true;
       showToast('A new island. R to rotate; drag to move.');
     }
-  } else { rememberGarden(); isSculpting = true; lastStrokePoint = point.clone(); }
+  } else { rememberGarden(); isSculpting = true; lastStrokePoint = point.clone(); rakeStrokeHasMoved = false; rakeReferenceHeights = activeTool === 'rake' ? heights.slice() : null; }
 });
 
 function clampStonePosition(worldX, worldZ, size) { return { x: clamp(worldX, -11.7 + size, 11.7 - size), z: clamp(worldZ, -5.45 + size * .8, 5.45 - size * .8) }; }
 
 canvas.addEventListener('pointermove', function movePointer(event) {
   updatePointer(event); pointerIsInside = true;
+  if (activeTool === 'rake') {
+    const point = terrainIntersection();
+    if (point) {
+      if (isSculpting) stampStroke(point, 0);
+      else if (lastRakeHoverPoint && event.buttons === 0) {
+        const movementX = point.x - lastRakeHoverPoint.x;
+        const movementZ = point.z - lastRakeHoverPoint.z;
+        if (Math.hypot(movementX, movementZ) > .002) strokeDirection.set(movementX, movementZ).normalize();
+      }
+      lastRakeHoverPoint = point.clone();
+    } else { lastRakeHoverPoint = null; lastStrokePoint = null; rakeStrokeHasMoved = false; }
+  }
   if (draggedStone) {
     const point = terrainIntersection();
     if (point) {
@@ -302,7 +371,7 @@ canvas.addEventListener('pointermove', function movePointer(event) {
   }
 });
 
-function endGesture() { isSculpting = false; draggedStone = null; lastStrokePoint = null; canvas.style.cursor = activeTool === 'stone' ? 'copy' : 'crosshair'; }
+function endGesture() { isSculpting = false; draggedStone = null; lastStrokePoint = null; rakeReferenceHeights = null; canvas.style.cursor = activeTool === 'stone' ? 'copy' : 'crosshair'; }
 window.addEventListener('pointerup', endGesture);
 canvas.addEventListener('pointercancel', endGesture);
 canvas.addEventListener('lostpointercapture', endGesture);
@@ -317,6 +386,7 @@ document.querySelectorAll('[data-shape]').forEach(function connectShape(button) 
   makeGhost();
 }); });
 document.querySelectorAll('[data-light]').forEach(function connectLighting(button) { button.addEventListener('click', function changeLight() { setLighting(button.dataset.light); }); });
+document.querySelector('#season').addEventListener('change', function changeSeason(event) { setSeason(event.target.value); });
 document.querySelector('#diameter').addEventListener('input', function changeDiameter(event) { updateDiameter(event.target.value); });
 document.querySelector('#strength').addEventListener('input', function changePressure(event) { brushPressure = Number(event.target.value) / 100; document.querySelector('#strength-label').textContent = `${event.target.value}%`; });
 document.querySelector('#stone-size').addEventListener('input', function changeStoneSize(event) {
@@ -443,7 +513,7 @@ try {
   const serialized = localStorage.getItem(storageKey);
   if (serialized) {
     const saved = JSON.parse(serialized);
-    if (validateSavedGarden(saved)) { restoreGarden(saved); setLighting(['morning', 'afternoon', 'overcast'].includes(saved.lighting) ? saved.lighting : 'afternoon'); document.querySelector('#save-status').textContent = 'Welcome back to your garden.'; }
+    if (validateSavedGarden(saved)) { restoreGarden(saved); setSeason(saved.season); setLighting(['morning', 'afternoon', 'overcast'].includes(saved.lighting) ? saved.lighting : 'afternoon'); document.querySelector('#save-status').textContent = 'Welcome back to your garden.'; }
   }
 } catch { /* Storage may be disabled; the garden remains fully playable. */ }
 updateTerrain(); setTool('rake');
@@ -465,10 +535,11 @@ function animate() {
   const cameraChanged = controls.update();
   if (terrainNeedsUpdate) updateTerrain();
   const point = pointerIsInside && !isContemplating ? terrainIntersection() : null;
-  brushRing.visible = !!point && activeTool !== 'stone';
+  brushRing.visible = !!point && activeTool !== 'stone' && activeTool !== 'rake';
+  rakeBar.visible = !!point && activeTool === 'rake';
   if (point && activeTool !== 'stone') {
     updateBrushVisual(point);
-    if (isSculpting) stampStroke(point, elapsedSeconds);
+    if (isSculpting && activeTool !== 'rake') stampStroke(point, elapsedSeconds);
   }
   if (ghostStone) {
     ghostStone.visible = !!point && !isContemplating && !draggedStone && !stoneIntersection();
@@ -488,5 +559,5 @@ animate();
 // application entry-point exports are removed by the production build.
 export function inspectGarden() {
   const point = terrainIntersection();
-  return { cameraPosition: camera.position.toArray(), groundPoint: point ? point.toArray() : null, isElevatedView, stoneCount: stoneGroup.children.length, minimumPolarAngle: controls.minPolarAngle };
+  return { cameraPosition: camera.position.toArray(), groundPoint: point ? point.toArray() : null, isElevatedView, stoneCount: stoneGroup.children.length, minimumPolarAngle: controls.minPolarAngle, rakeBarVisible: rakeBar.visible, brushRingVisible: brushRing.visible, rakeDirection: strokeDirection.toArray(), brushDiameter, chosenSeason, terrainHeightEnergy: heights.reduce(function sumSquaredHeight(total, height) { return total + height * height; }, 0) };
 }

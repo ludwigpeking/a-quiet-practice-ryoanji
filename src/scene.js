@@ -92,7 +92,7 @@ function createLeafTexture(species = 'broadleaf') {
   const canvas = document.createElement('canvas'); canvas.width = canvas.height = 128;
   const context = canvas.getContext('2d');
   const randomNumber = seededRandom(78);
-  if (species === 'canopy') { context.fillStyle = '#48553b'; context.fillRect(0, 0, 128, 128); }
+  if (species === 'canopy') { context.fillStyle = '#777777'; context.fillRect(0, 0, 128, 128); }
   context.strokeStyle = '#819174'; context.lineWidth = 1.7;
   context.beginPath(); context.moveTo(64, 124); context.bezierCurveTo(49, 76, 84, 47, 63, 7); context.stroke();
   for (let leafIndex = 0; leafIndex < (species === 'canopy' ? 380 : 27); leafIndex++) {
@@ -101,7 +101,7 @@ function createLeafTexture(species = 'broadleaf') {
     const leafLength = species === 'canopy' ? 2 + randomNumber() * 5 : 7 + randomNumber() * 11;
     context.save(); context.translate(centerX, centerY); context.rotate(randomNumber() * Math.PI * 2);
     const gradient = context.createLinearGradient(-leafLength, 0, leafLength, 0);
-    gradient.addColorStop(0, '#9aab88'); gradient.addColorStop(.5, '#d0d8ba'); gradient.addColorStop(1, '#829571');
+    gradient.addColorStop(0, '#aaaaaa'); gradient.addColorStop(.5, '#dedede'); gradient.addColorStop(1, '#929292');
     context.fillStyle = gradient;
     if (species === 'conifer') {
       context.strokeStyle = '#becbab'; context.lineWidth = 1.4;
@@ -217,7 +217,7 @@ export function createGardenScene() {
   for (let railIndex = 0; railIndex < 9; railIndex++) box(temple, 33, .04, .1, 0, railIndex * .48 + .35, 11.77, woodMaterial);
   mergeStaticMeshes(temple);
   scene.remove(temple);
-  createForest(scene, createLeafTexture, seededRandom(500));
+  const forest = createForest(scene, createLeafTexture, seededRandom(500));
   const randomNumber = seededRandom(501);
   const transform = new THREE.Object3D();
   const pebbleGeometry = new THREE.IcosahedronGeometry(1, 0);
@@ -233,7 +233,7 @@ export function createGardenScene() {
   const mossMaterial = createMaterial('moss', 64, 3, 3);
   mergeStaticMeshes(scene, sand);
   scene.add(temple);
-  return { scene, sand, sunlight, hemisphere, fillLight, rockMaterial, mossMaterial, temple };
+  return { scene, sand, sunlight, hemisphere, fillLight, rockMaterial, mossMaterial, temple, forest };
 }
 
 export function createStone(definition, rockMaterial, mossMaterial) {

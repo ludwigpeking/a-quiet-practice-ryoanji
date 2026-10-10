@@ -4,6 +4,8 @@ export const COLUMN_COUNT = 289;
 export const ROW_COUNT = 139;
 export const CELL_WIDTH = GARDEN_WIDTH / (COLUMN_COUNT - 1);
 export const CELL_DEPTH = GARDEN_DEPTH / (ROW_COUNT - 1);
+export const RAKE_TOOTH_SPACING = Math.PI * 2 / 28;
+export const RAKE_HALF_DEPTH = .14;
 
 export function clamp(value, minimum, maximum) { return Math.max(minimum, Math.min(maximum, value)); }
 
@@ -50,11 +52,21 @@ export function sampleHeight(heights, worldX, worldZ) {
 // between the trailing and leading halves, including at the garden boundary.
 export function applyBrush(heights, options) {
   const { worldX, worldZ, radius, pressure, tool, directionX, directionZ, elapsedSeconds } = options;
-  const minimumColumn = clamp(Math.floor((worldX - radius + GARDEN_WIDTH / 2) / CELL_WIDTH), 0, COLUMN_COUNT - 1);
-  const maximumColumn = clamp(Math.ceil((worldX + radius + GARDEN_WIDTH / 2) / CELL_WIDTH), 0, COLUMN_COUNT - 1);
-  const minimumRow = clamp(Math.floor((worldZ - radius + GARDEN_DEPTH / 2) / CELL_DEPTH), 0, ROW_COUNT - 1);
-  const maximumRow = clamp(Math.ceil((worldZ + radius + GARDEN_DEPTH / 2) / CELL_DEPTH), 0, ROW_COUNT - 1);
+  const boundsRadius = tool === 'rake' ? radius + RAKE_HALF_DEPTH : radius;
+  const minimumColumn = clamp(Math.floor((worldX - boundsRadius + GARDEN_WIDTH / 2) / CELL_WIDTH), 0, COLUMN_COUNT - 1);
+  const maximumColumn = clamp(Math.ceil((worldX + boundsRadius + GARDEN_WIDTH / 2) / CELL_WIDTH), 0, COLUMN_COUNT - 1);
+  const minimumRow = clamp(Math.floor((worldZ - boundsRadius + GARDEN_DEPTH / 2) / CELL_DEPTH), 0, ROW_COUNT - 1);
+  const maximumRow = clamp(Math.ceil((worldZ + boundsRadius + GARDEN_DEPTH / 2) / CELL_DEPTH), 0, ROW_COUNT - 1);
   const previousHeights = tool === 'smooth' ? heights.slice() : heights;
+  let rakeBaseHeight = 0;
+  if (tool === 'rake') {
+    // Sample the original stroke surface so overlapping teeth do not dig a trench.
+    const referenceHeights = options.referenceHeights || heights;
+    for (const spacingFactor of [-.75, -.25, .25, .75]) {
+      const lateralDistance = spacingFactor * RAKE_TOOTH_SPACING;
+      rakeBaseHeight += sampleHeight(referenceHeights, worldX - directionZ * lateralDistance, worldZ + directionX * lateralDistance) / 4;
+    }
+  }
   const pushCells = [];
   let positiveWeight = 0;
   let negativeWeight = 0;
@@ -62,18 +74,23 @@ export function applyBrush(heights, options) {
     for (let columnIndex = minimumColumn; columnIndex <= maximumColumn; columnIndex++) {
       const offsetX = columnIndex * CELL_WIDTH - GARDEN_WIDTH / 2 - worldX;
       const offsetZ = rowIndex * CELL_DEPTH - GARDEN_DEPTH / 2 - worldZ;
+      if (tool === 'rake') {
+        const lateralDistance = offsetX * -directionZ + offsetZ * directionX;
+        const forwardDistance = offsetX * directionX + offsetZ * directionZ;
+        if (Math.abs(lateralDistance) >= radius || Math.abs(forwardDistance) >= RAKE_HALF_DEPTH) continue;
+        const edgeWeight = clamp((radius - Math.abs(lateralDistance)) / .08, 0, 1);
+        const contactWeight = 1 - Math.pow(forwardDistance / RAKE_HALF_DEPTH, 2);
+        const targetHeight = rakeBaseHeight - Math.cos(lateralDistance * Math.PI * 2 / RAKE_TOOTH_SPACING) * .042;
+        const vertexIndex = rowIndex * COLUMN_COUNT + columnIndex;
+        heights[vertexIndex] += (targetHeight - heights[vertexIndex]) * (1 - Math.exp(-pressure * elapsedSeconds * 70 * edgeWeight * contactWeight));
+        continue;
+      }
       const distance = Math.hypot(offsetX, offsetZ);
       if (distance >= radius) continue;
       const vertexIndex = rowIndex * COLUMN_COUNT + columnIndex;
       const falloff = Math.pow(1 - distance * distance / (radius * radius), 2);
       const changeAmount = pressure * elapsedSeconds * falloff;
       if (tool === 'raise' || tool === 'press') heights[vertexIndex] = clamp(heights[vertexIndex] + changeAmount * (tool === 'raise' ? 1.2 : -1.2), -.65, 1.5);
-      if (tool === 'rake') {
-        const lateralDistance = offsetX * -directionZ + offsetZ * directionX;
-        const targetHeight = Math.sin(lateralDistance * 28) * .042;
-        const lowFrequencyHeight = sampleHeight(heights, worldX, worldZ) * .85;
-        heights[vertexIndex] += (targetHeight + lowFrequencyHeight - heights[vertexIndex]) * clamp(changeAmount * 24, 0, .8);
-      }
       if (tool === 'smooth') {
         let heightSum = 0;
         let sampleCount = 0;
