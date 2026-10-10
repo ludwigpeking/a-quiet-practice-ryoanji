@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { mergeGeometries, mergeVertices } from 'three/addons/utils/BufferGeometryUtils.js';
+import { createForest } from './forest.js';
 import { GARDEN_WIDTH, GARDEN_DEPTH, COLUMN_COUNT, ROW_COUNT } from './terrain.js';
 
 export function seededRandom(seed) {
@@ -86,20 +87,40 @@ function mergeStaticMeshes(parent, excludedMesh) {
   }
 }
 
-function createLeafTexture() {
+function createLeafTexture(species = 'broadleaf') {
   const canvas = document.createElement('canvas'); canvas.width = canvas.height = 128;
   const context = canvas.getContext('2d');
   const randomNumber = seededRandom(78);
+  if (species === 'canopy') { context.fillStyle = '#48553b'; context.fillRect(0, 0, 128, 128); }
   context.strokeStyle = '#819174'; context.lineWidth = 1.7;
   context.beginPath(); context.moveTo(64, 124); context.bezierCurveTo(49, 76, 84, 47, 63, 7); context.stroke();
-  for (let leafIndex = 0; leafIndex < 27; leafIndex++) {
-    const centerX = 20 + randomNumber() * 88;
-    const centerY = 8 + randomNumber() * 104;
-    const leafLength = 7 + randomNumber() * 11;
+  for (let leafIndex = 0; leafIndex < (species === 'canopy' ? 380 : 27); leafIndex++) {
+    const centerX = species === 'canopy' ? randomNumber() * 128 : 20 + randomNumber() * 88;
+    const centerY = species === 'canopy' ? randomNumber() * 128 : 8 + randomNumber() * 104;
+    const leafLength = species === 'canopy' ? 2 + randomNumber() * 5 : 7 + randomNumber() * 11;
     context.save(); context.translate(centerX, centerY); context.rotate(randomNumber() * Math.PI * 2);
     const gradient = context.createLinearGradient(-leafLength, 0, leafLength, 0);
     gradient.addColorStop(0, '#9aab88'); gradient.addColorStop(.5, '#d0d8ba'); gradient.addColorStop(1, '#829571');
-    context.fillStyle = gradient; context.beginPath(); context.moveTo(-leafLength, 0); context.quadraticCurveTo(0, -leafLength * .7, leafLength, 0); context.quadraticCurveTo(0, leafLength * .7, -leafLength, 0); context.fill(); context.restore();
+    context.fillStyle = gradient;
+    if (species === 'conifer') {
+      context.strokeStyle = '#becbab'; context.lineWidth = 1.4;
+      for (let needleIndex = 0; needleIndex < 8; needleIndex++) {
+        const needlePosition = (needleIndex / 7 - .5) * leafLength * 2;
+        context.beginPath(); context.moveTo(needlePosition, 0); context.lineTo(needlePosition + leafLength * .45, -leafLength * .55); context.moveTo(needlePosition, 0); context.lineTo(needlePosition + leafLength * .45, leafLength * .55); context.stroke();
+      }
+    } else if (species === 'maple') {
+      context.beginPath();
+      for (let pointIndex = 0; pointIndex < 14; pointIndex++) {
+        const angle = pointIndex / 14 * Math.PI * 2;
+        const radius = leafLength * (pointIndex % 2 === 0 ? 1 : .38);
+        if (pointIndex === 0) context.moveTo(Math.cos(angle) * radius, Math.sin(angle) * radius);
+        else context.lineTo(Math.cos(angle) * radius, Math.sin(angle) * radius);
+      }
+      context.closePath(); context.fill();
+    } else {
+      context.beginPath(); context.moveTo(-leafLength, 0); context.quadraticCurveTo(0, -leafLength * .7, leafLength, 0); context.quadraticCurveTo(0, leafLength * .7, -leafLength, 0); context.fill();
+    }
+    context.restore();
   }
   const texture = new THREE.CanvasTexture(canvas); texture.colorSpace = THREE.SRGBColorSpace; return texture;
 }
@@ -192,46 +213,11 @@ export function createGardenScene() {
   box(temple, 33, 4.3, .16, 0, 2.2, 11.9, screenMaterial);
   for (let panelIndex = 0; panelIndex < 60; panelIndex++) box(temple, .055, 4.3, .1, -16 + panelIndex * .55, 2.2, 11.77, woodMaterial);
   for (let railIndex = 0; railIndex < 9; railIndex++) box(temple, 33, .04, .1, 0, railIndex * .48 + .35, 11.77, woodMaterial);
-  // Fine leaf clusters use a single instanced draw call, with layered canopy depth.
-  const randomNumber = seededRandom(500);
   mergeStaticMeshes(temple);
   scene.remove(temple);
-  const foliageGeometry = new THREE.PlaneGeometry(1, 1);
-  const foliageMaterial = new THREE.MeshStandardMaterial({ map: createLeafTexture(), alphaTest: .45, side: THREE.DoubleSide, roughness: 1, color: '#ffffff' });
-  const leafCount = 12500;
-  const foliage = new THREE.InstancedMesh(foliageGeometry, foliageMaterial, leafCount);
-  foliage.castShadow = true; foliage.receiveShadow = true;
-  const transform = new THREE.Object3D(); const leafColor = new THREE.Color();
-  const trunkMaterial = new THREE.MeshStandardMaterial({ color: '#5a5741', roughness: 1 });
-  let leafIndex = 0;
-  for (let treeIndex = 0; treeIndex < 50; treeIndex++) {
-    const trunkX = (randomNumber() - .5) * 76;
-    const trunkZ = -10 - randomNumber() * 24;
-    const treeHeight = 3.4 + randomNumber() * 7;
-    const trunk = new THREE.Mesh(new THREE.CylinderGeometry(.07, .28, treeHeight, 7), trunkMaterial);
-    trunk.position.set(trunkX, treeHeight / 2 - .5, trunkZ); trunk.castShadow = true; scene.add(trunk);
-    const canopyRadius = 2.5 + randomNumber() * 2.5;
-    for (let branchIndex = 0; branchIndex < 5; branchIndex++) {
-      const branch = new THREE.Mesh(new THREE.CylinderGeometry(.025, .09, 2.5, 5), trunkMaterial);
-      branch.position.set(trunkX + Math.sin(branchIndex * 2) * .7, treeHeight * .7 + branchIndex * .3, trunkZ + Math.cos(branchIndex * 2) * .7);
-      branch.rotation.z = Math.sin(branchIndex * 2) * .8; branch.rotation.x = Math.cos(branchIndex * 2) * .8; scene.add(branch);
-    }
-    for (let clusterIndex = 0; clusterIndex < 250; clusterIndex++) {
-      const azimuth = randomNumber() * Math.PI * 2;
-      const verticalDirection = randomNumber() * 2 - 1;
-      const radialDistance = Math.cbrt(randomNumber()) * canopyRadius;
-      const horizontalRadius = Math.sqrt(1 - verticalDirection * verticalDirection) * radialDistance;
-      transform.position.set(trunkX + Math.cos(azimuth) * horizontalRadius, treeHeight - 1 + verticalDirection * radialDistance * .65, trunkZ + Math.sin(azimuth) * horizontalRadius);
-      const leafScale = .55 + randomNumber() * .6;
-      transform.scale.set(leafScale * 1.4, leafScale, leafScale);
-      transform.rotation.set(randomNumber(), randomNumber() * 6, randomNumber()); transform.updateMatrix();
-      foliage.setMatrixAt(leafIndex, transform.matrix);
-      const isAmberTree = treeIndex % 11 === 0;
-      leafColor.setHSL(isAmberTree ? .095 : .24 + randomNumber() * .045, isAmberTree ? .38 : .18 + randomNumber() * .15, .24 + randomNumber() * .21);
-      foliage.setColorAt(leafIndex++, leafColor);
-    }
-  }
-  scene.add(foliage);
+  createForest(scene, createLeafTexture, seededRandom(500));
+  const randomNumber = seededRandom(501);
+  const transform = new THREE.Object3D();
   const pebbleGeometry = new THREE.IcosahedronGeometry(1, 0);
   const pebbles = new THREE.InstancedMesh(pebbleGeometry, borderMaterial, 1600);
   for (let pebbleIndex = 0; pebbleIndex < 1600; pebbleIndex++) {
