@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { forestPalettes, isDeciduousFamily, seasonalLeafRetention } from './forest-palette.js';
 import { createTreeBranches } from './tree-branches.js';
+import { createForestBreeze } from './breeze.js';
 
 // Overlapping evergreen understory closes the horizon; distinct crown shapes
 // and leaf sprays keep the taller layers readable above it.
@@ -11,10 +12,13 @@ export function createForest(scene, createLeafTexture, randomNumber) {
   const foliageBatches = new Map();
   const canopyCores = [];
   const treeBranches = createTreeBranches(scene);
+  const breeze = createForestBreeze();
+  breeze.applyToMaterial(treeBranches.material);
   const branch = treeBranches.branch;
 
   for (const species of ['broadleaf', 'maple', 'conifer', 'cherry']) {
     const material = new THREE.MeshStandardMaterial({ map: createLeafTexture(species), alphaTest: .45, side: THREE.DoubleSide, roughness: 1 });
+    breeze.applyToMaterial(material, species === 'conifer' ? .005 : .014);
     foliageBatches.set(species, { material, instances: [] });
   }
   const cherryBlossomTexture = foliageBatches.get('cherry').material.map;
@@ -157,6 +161,7 @@ export function createForest(scene, createLeafTexture, randomNumber) {
   coreTexture.wrapS = coreTexture.wrapT = THREE.RepeatWrapping;
   coreTexture.repeat.set(4, 3); coreTexture.anisotropy = 8;
   const coreMaterial = new THREE.MeshStandardMaterial({ map: coreTexture, bumpMap: coreTexture, bumpScale: .16, roughness: 1 });
+  breeze.applyToMaterial(coreMaterial);
   const cores = new THREE.InstancedMesh(coreGeometry, coreMaterial, canopyCores.length);
   cores.name = 'Dense forest understory and inner crowns';
   for (let coreIndex = 0; coreIndex < canopyCores.length; coreIndex++) {
@@ -233,5 +238,5 @@ export function createForest(scene, createLeafTexture, randomNumber) {
     for (const summary of Object.values(families)) summary.color = summary.color.map(function averageColor(channel) { return channel / summary.count; });
     return families;
   }
-  return { setSeason, inspectSeason };
+  return { setSeason, inspectSeason, breeze };
 }

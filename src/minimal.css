@@ -76,5 +76,6 @@
 .tool-dock .stone-options{gap:6px;margin-top:16px}
 .tool-dock .stone-choice{font-size:9px;line-height:14px;padding:8px 2px;color:#fffced;border-color:#f0eed433;background:#1b281c44;text-shadow:0 1px 3px #0c160dcc}
 .tool-dock .stone-choice.active{background:#ecebdce8;color:#293c28;text-shadow:none}
+.tool-dock .stone-choice small{display:block;font-size:8px;line-height:12px;letter-spacing:.4px;opacity:.8}
 .tool-dock .microcopy{font-size:10px;line-height:1.7;color:#eee9d8;margin:12px 0 0}
 @media(max-width:700px){.tool-dock .inspector{padding:18px}.tool-dock .setting-row{margin:12px 0}}

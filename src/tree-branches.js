@@ -147,5 +147,5 @@ export function createTreeBranches(scene) {
     }
   }
 
-  return { branch, deciduousTree, shrub };
+  return { branch, deciduousTree, shrub, material };
 }

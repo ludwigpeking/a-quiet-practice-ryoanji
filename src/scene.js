@@ -206,6 +206,13 @@ export function createGardenScene() {
     box(scene, .39, .12, .24, -11.8 + borderIndex * .4, .015, 5.89, borderMaterial);
     box(scene, .39, .12, .24, -11.8 + borderIndex * .4, .015, -5.89, borderMaterial);
   }
+  // Return the same weathered curb along the sides, inside the drainage gravel.
+  const sideCurbBlockLength = 11.54 / 29;
+  for (const side of [-1, 1]) {
+    for (let borderIndex = 0; borderIndex < 29; borderIndex++) {
+      box(scene, .24, .12, sideCurbBlockLength - .01, side * 11.88, .015, -5.77 + (borderIndex + .5) * sideCurbBlockLength, borderMaterial);
+    }
+  }
   // Deep eaves, exposed rafters, polished planks and the shaded temple interior.
   const temple = new THREE.Group(); scene.add(temple);
   box(temple, 33, .48, 5.5, 0, -.1, 9.25, woodMaterial);

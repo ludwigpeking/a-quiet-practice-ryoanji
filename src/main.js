@@ -4,9 +4,10 @@ import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { SSAOPass } from 'three/addons/postprocessing/SSAOPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
-import { createGardenScene, createStone, seatStoneOnTerrain, originalStones, seededRandom } from './scene.js';
+import { createGardenScene, createStone, seatStoneOnTerrain, originalStones } from './scene.js';
 import { createInitialHeights, applyBrush, sampleHeight, resampleSavedHeights, clamp, COLUMN_COUNT, ROW_COUNT, RAKE_TOOTH_SPACING, RAKE_HALF_DEPTH } from './terrain.js';
 import { createRakePath, advanceRakePath, planRakeContact } from './rake-path.js';
+import { createGardenAmbience } from './ambience.js';
 import './style.css';
 import './minimal.css';
 
@@ -29,6 +30,8 @@ renderer.toneMappingExposure = 1;
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 
 const { scene, sand, sunlight, hemisphere, fillLight, rockMaterial, mossMaterial, temple, forest } = createGardenScene();
+const gardenAmbience = createGardenAmbience();
+const reducedMotionPreference = matchMedia('(prefers-reduced-motion: reduce)');
 let renderRequested = true;
 const camera = new THREE.PerspectiveCamera(64, innerWidth / innerHeight, .1, 150);
 camera.position.set(0, 2.7, 11.25);
@@ -234,6 +237,7 @@ function setTool(tool) {
 function setSeason(season) {
   chosenSeason = ['spring', 'summer', 'autumn', 'winter'].includes(season) ? season : 'summer';
   forest.setSeason(chosenSeason);
+  gardenAmbience.setSeason(chosenSeason);
   const mossTints = { spring: '#d9d4a2', summer: '#ffffff', autumn: '#d0b179', winter: '#a58a62' };
   mossMaterial.color.set(mossTints[chosenSeason]);
   document.querySelector('#season').value = chosenSeason;
@@ -425,11 +429,17 @@ canvas.addEventListener('pointerleave', function leaveGarden() { pointerIsInside
 canvas.addEventListener('contextmenu', function preventMenu(event) { event.preventDefault(); });
 
 document.querySelectorAll('[data-tool]').forEach(function connectTool(button) { button.addEventListener('click', function chooseTool() { setTool(button.dataset.tool); }); });
-document.querySelectorAll('[data-shape]').forEach(function connectShape(button) { button.addEventListener('click', function chooseShape() {
-  chosenStoneShape = button.dataset.shape;
-  document.querySelectorAll('[data-shape]').forEach(function markShape(shapeButton) { shapeButton.classList.toggle('active', shapeButton === button); });
-  makeGhost();
-}); });
+function selectStoneShape(shape) {
+  endGesture();
+  chosenStoneShape = shape;
+  document.querySelectorAll('[data-shape]').forEach(function markShape(button) {
+    const selected = button.dataset.shape === shape;
+    button.classList.toggle('active', selected);
+    button.setAttribute('aria-pressed', String(selected));
+  });
+  setTool('stone');
+}
+document.querySelectorAll('[data-shape]').forEach(function connectShape(button) { button.addEventListener('click', function chooseShape() { selectStoneShape(button.dataset.shape); }); });
 document.querySelectorAll('[data-light]').forEach(function connectLighting(button) { button.addEventListener('click', function changeLight() { setLighting(button.dataset.light); }); });
 document.querySelector('#season').addEventListener('change', function changeSeason(event) { setSeason(event.target.value); });
 document.querySelector('#diameter').addEventListener('input', function changeDiameter(event) { updateDiameter(event.target.value); });
@@ -514,7 +524,7 @@ document.querySelector('#return-button').addEventListener('click', function retu
 window.addEventListener('keydown', function handleKey(event) {
   if (guideDialog.open || resetDialog.open) return;
   if (event.key === 'Escape') { setContemplating(false); closeTools(); return; }
-  if (event.target.matches('input, textarea, select')) return;
+  if (event.target.matches('input, textarea, select') || event.target.isContentEditable) return;
   if (event.key.toLowerCase() === 'f') { event.preventDefault(); performanceMeter.hidden = !performanceMeter.hidden; return; }
   if (isContemplating) return;
   if (event.key === '[' || event.key === ']') {
@@ -524,6 +534,11 @@ window.addEventListener('keydown', function handleKey(event) {
     else updateDiameter(brushDiameter + adjustment * .15);
   }
   if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'z') { event.preventDefault(); undo(); return; }
+  if (!event.ctrlKey && !event.metaKey && !event.altKey) {
+    const stoneShapeHotkeys = { '7': 'spire', z: 'spire', '8': 'reclining', x: 'reclining', '9': 'mountain', c: 'mountain', '0': 'split', v: 'split' };
+    const shape = stoneShapeHotkeys[event.key.toLowerCase()];
+    if (shape) { event.preventDefault(); if (!event.repeat) selectStoneShape(shape); return; }
+  }
   if (/^[1-6]$/.test(event.key)) setTool(['rake', 'raise', 'press', 'push', 'smooth', 'stone'][Number(event.key) - 1]);
   if (event.key.toLowerCase() === 'r' && activeTool === 'stone') {
     renderer.shadowMap.needsUpdate = true; renderRequested = true;
@@ -536,25 +551,21 @@ window.addEventListener('keydown', function handleKey(event) {
   }
 });
 
-let audioContext = null;
 let soundEnabled = false;
-let ambienceGain;
 document.querySelector('#sound-button').addEventListener('click', async function toggleSound() {
-  if (!audioContext) {
-    audioContext = new AudioContext();
-    const buffer = audioContext.createBuffer(1, audioContext.sampleRate * 8, audioContext.sampleRate);
-    const samples = buffer.getChannelData(0); const randomNumber = seededRandom(19); let previousSample = 0;
-    for (let sampleIndex = 0; sampleIndex < samples.length; sampleIndex++) { previousSample = (previousSample + (randomNumber() * 2 - 1) * .018) / 1.018; samples[sampleIndex] = previousSample * 3; }
-    const noise = audioContext.createBufferSource(); noise.buffer = buffer; noise.loop = true;
-    const filter = audioContext.createBiquadFilter(); filter.type = 'lowpass'; filter.frequency.value = 650;
-    ambienceGain = audioContext.createGain(); ambienceGain.gain.value = 0;
-    noise.connect(filter); filter.connect(ambienceGain); ambienceGain.connect(audioContext.destination); noise.start();
+  const soundButton = document.querySelector('#sound-button');
+  soundButton.disabled = true;
+  try {
+    soundEnabled = await gardenAmbience.setEnabled(!soundEnabled);
+    soundButton.style.background = soundEnabled ? '#a9b38355' : '';
+    soundButton.setAttribute('aria-label', soundEnabled ? 'Disable seasonal nature sounds' : 'Enable seasonal nature sounds');
+    soundButton.setAttribute('aria-pressed', String(soundEnabled));
+    showToast(soundEnabled ? 'A little breeze, with cicadas in summer.' : 'Quiet again.');
+  } catch {
+    showToast('Sound could not start. Try the sound button again.');
+  } finally {
+    soundButton.disabled = false;
   }
-  await audioContext.resume(); soundEnabled = !soundEnabled;
-  ambienceGain.gain.setTargetAtTime(soundEnabled ? .3 : 0, audioContext.currentTime, .6);
-  document.querySelector('#sound-button').style.background = soundEnabled ? '#a9b38355' : '';
-  document.querySelector('#sound-button').setAttribute('aria-label', soundEnabled ? 'Disable ambient sound' : 'Enable ambient sound');
-  showToast(soundEnabled ? 'A breeze through the trees.' : 'Quiet again.');
 });
 
 window.addEventListener('resize', function resizeGarden() {
@@ -584,6 +595,7 @@ let framesRenderedInWindow = 0;
 let measuredFramesPerSecond = 0;
 document.addEventListener('visibilitychange', function pauseHiddenGarden() {
   if (document.hidden) { endGesture(); pointerIsInside = false; }
+  gardenAmbience.setHidden(document.hidden);
   frameWindowStart = performance.now(); framesRenderedInWindow = 0;
   renderRequested = true;
 });
@@ -593,6 +605,8 @@ function animate() {
   const frameDuration = frameClock.getDelta();
   if (document.hidden) return;
   const elapsedSeconds = Math.min(frameDuration, .06);
+  const breezeChanged = forest.breeze.update(frameDuration, reducedMotionPreference.matches);
+  gardenAmbience.update(forest.breeze.inspect().strength);
   if (viewTransition) {
     viewTransition.elapsed += frameDuration;
     const fraction = Math.min(1, viewTransition.elapsed / 1.1);
@@ -617,7 +631,7 @@ function animate() {
   }
   selectionRing.visible = !!selectedStone && !isContemplating;
   if (selectedStone) { selectionRing.position.copy(selectedStone.position); selectionRing.position.y += .08; selectionRing.scale.setScalar(selectedStone.userData.definition.size * 1.4); }
-  if (frameCount < 3 || renderRequested || cameraChanged || (isSculpting && activeTool !== 'rake') || viewTransition) {
+  if (frameCount < 3 || renderRequested || breezeChanged || cameraChanged || (isSculpting && activeTool !== 'rake') || viewTransition) {
     composer.render(); renderRequested = false; framesRenderedInWindow++;
   }
   const frameWindowEnd = performance.now();
@@ -640,5 +654,5 @@ animate();
 // application entry-point exports are removed by the production build.
 export function inspectGarden() {
   const point = terrainIntersection();
-  return { cameraPosition: camera.position.toArray(), groundPoint: point ? point.toArray() : null, isElevatedView, stoneCount: stoneGroup.children.length, selectedStoneSize: selectedStone ? selectedStone.userData.definition.size : null, chosenStoneSize, minimumPolarAngle: controls.minPolarAngle, rakeBarVisible: rakeBar.visible, brushRingVisible: brushRing.visible, rakeDirection: strokeDirection.toArray(), rakeGroundPosition: rakePath ? [rakePath.secondX, rakePath.secondZ] : null, brushDiameter, chosenSeason, forest: forest.inspectSeason(), terrainHeightEnergy: heights.reduce(function sumSquaredHeight(total, height) { return total + height * height; }, 0) };
+  return { cameraPosition: camera.position.toArray(), groundPoint: point ? point.toArray() : null, isElevatedView, stoneCount: stoneGroup.children.length, selectedStoneSize: selectedStone ? selectedStone.userData.definition.size : null, chosenStoneSize, minimumPolarAngle: controls.minPolarAngle, rakeBarVisible: rakeBar.visible, brushRingVisible: brushRing.visible, rakeDirection: strokeDirection.toArray(), rakeGroundPosition: rakePath ? [rakePath.secondX, rakePath.secondZ] : null, brushDiameter, chosenSeason, breeze: forest.breeze.inspect(), ambience: gardenAmbience.inspect(), forest: forest.inspectSeason(), terrainHeightEnergy: heights.reduce(function sumSquaredHeight(total, height) { return total + height * height; }, 0) };
 }
