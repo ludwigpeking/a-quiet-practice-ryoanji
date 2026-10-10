@@ -32,3 +32,9 @@ Additional spring and winter photo sampling was completed before the second seas
 | Moss | Olive/yellow-green | Green | Ochre-green | Muted brown-olive |
 
 These are photo-guided artistic plant families, not a surveyed inventory of Ryōan-ji's individual plants. Seasons are representative moments (early spring blossom and new leaves, full summer, autumn color, leafless winter), not fixed dates. The photos differ in light and exposure; the winter palette preserves the distinction between evergreen mass and bronzed foliage instead of turning every tree red. Pine, generic understory and moss transitions combine the scene references with artistic interpolation.
+
+## Curb and drainage stones
+
+The foreground drainage strip in the winter photograph above clearly separates pale, weathered-gray curb blocks from substantially darker charcoal and cool-gray stones. The spring photograph shows the same separation under warmer light: curb highlights become creamier while the gutter remains dark gray. This is a visual comparison, not a measurement of reflectance.
+
+The previous shared yellow-gray material (`#a4a493`) has been replaced with a neutral, subtly speckled curb (`#96999b`) and a separate per-stone palette ranging from charcoal (`#394147`) to medium gray (`#74787a`). A dark neutral bed prevents olive ground from showing between the gutter stones. The wall foundation is also neutral gray. Existing scene lighting supplies environmental warmth; these materials do not bake in a yellow cast. The changes are checked in morning, afternoon and overcast renders.

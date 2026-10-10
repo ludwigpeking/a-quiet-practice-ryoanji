@@ -14,7 +14,7 @@ function createSurfaceTexture(kind, seed) {
   const canvas = document.createElement('canvas');
   canvas.width = canvas.height = 1024;
   const context = canvas.getContext('2d');
-  const baseColors = { sand: '#c5c7c7', wood: '#59483e', wall: '#b79a7b', rock: '#6f7174', moss: '#596633' };
+  const baseColors = { sand: '#c5c7c7', wood: '#59483e', wall: '#b79a7b', rock: '#6f7174', moss: '#596633', curb: '#96999b' };
   context.fillStyle = baseColors[kind];
   context.fillRect(0, 0, 1024, 1024);
   const imageData = context.getImageData(0, 0, 1024, 1024);
@@ -163,7 +163,7 @@ export function createGardenScene() {
   const woodMaterial = createMaterial('wood', 45, 1, 3);
   const wallMaterial = createMaterial('wall', 52, 5, 1);
   const roofMaterial = new THREE.MeshStandardMaterial({ color: '#4d5149', roughness: .92 });
-  const foundationMaterial = new THREE.MeshStandardMaterial({ color: '#79796b', roughness: 1 });
+  const foundationMaterial = new THREE.MeshStandardMaterial({ color: '#74787a', roughness: 1 });
   const sandMaterial = createMaterial('sand', 13, 18, 9);
   sandMaterial.vertexColors = true;
   const sandGeometry = new THREE.PlaneGeometry(GARDEN_WIDTH, GARDEN_DEPTH, COLUMN_COUNT - 1, ROW_COUNT - 1);
@@ -192,7 +192,16 @@ export function createGardenScene() {
     const tile = new THREE.Mesh(new THREE.CylinderGeometry(.075, .075, 1.12, 8, 1, false, 0, Math.PI), roofMaterial);
     tile.rotation.x = Math.PI / 2; tile.position.set(-13 + tileIndex * .205, 2.21, -6.65); tile.castShadow = true; scene.add(tile);
   }
-  const borderMaterial = new THREE.MeshStandardMaterial({ color: '#a4a493', roughness: 1 });
+  // Pale weathered edging and dark drainage stones are distinct materials in
+  // the photo references. Keep yellow out of their intrinsic surface colors;
+  // the sunlight and sky fill supply their warm/cool shifts.
+  const borderMaterial = createMaterial('curb', 68, 1, 1);
+  borderMaterial.bumpScale = .018;
+  const gutterBedMaterial = new THREE.MeshStandardMaterial({ color: '#30363a', roughness: 1 });
+  for (const side of [-1, 1]) {
+    box(scene, 24.7, .045, .30, 0, -.085, side * 6.15, gutterBedMaterial);
+    box(scene, .36, .045, 12.3, side * 12.22, -.085, 0, gutterBedMaterial);
+  }
   for (let borderIndex = 0; borderIndex < 60; borderIndex++) {
     box(scene, .39, .12, .24, -11.8 + borderIndex * .4, .015, 5.89, borderMaterial);
     box(scene, .39, .12, .24, -11.8 + borderIndex * .4, .015, -5.89, borderMaterial);
@@ -226,13 +235,20 @@ export function createGardenScene() {
   const randomNumber = seededRandom(501);
   const transform = new THREE.Object3D();
   const pebbleGeometry = new THREE.IcosahedronGeometry(1, 0);
-  const pebbles = new THREE.InstancedMesh(pebbleGeometry, borderMaterial, 1600);
+  const pebbleMaterial = new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: .96 });
+  const pebbles = new THREE.InstancedMesh(pebbleGeometry, pebbleMaterial, 1600);
+  const pebblePalette = ['#394147', '#444b50', '#50575c', '#5a6064', '#676c6e', '#74787a'];
+  const pebbleColor = new THREE.Color();
+  const pebbleColorRandom = seededRandom(502);
   for (let pebbleIndex = 0; pebbleIndex < 1600; pebbleIndex++) {
     const isSide = pebbleIndex % 2 === 0;
     const side = randomNumber() > .5 ? 1 : -1;
     transform.position.set(isSide ? side * (12.05 + randomNumber() * .32) : (randomNumber() - .5) * 24, -.01, isSide ? (randomNumber() - .5) * 11.7 : side * (6 + randomNumber() * .2));
     transform.scale.set(.04 + randomNumber() * .065, .03 + randomNumber() * .04, .04 + randomNumber() * .065); transform.rotation.set(randomNumber() * 3, randomNumber() * 3, 0); transform.updateMatrix(); pebbles.setMatrixAt(pebbleIndex, transform.matrix);
+    pebbleColor.set(pebblePalette[Math.floor(pebbleColorRandom() * pebblePalette.length)]);
+    pebbles.setColorAt(pebbleIndex, pebbleColor);
   }
+  pebbles.castShadow = true; pebbles.receiveShadow = true;
   scene.add(pebbles);
   const rockMaterial = enrichStoneMaterial(createMaterial('rock', 62, 1, 1)); rockMaterial.vertexColors = true; rockMaterial.bumpScale = .035;
   const mossMaterial = createMaterial('moss', 64, 3, 3);
