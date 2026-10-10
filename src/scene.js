@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { mergeGeometries, mergeVertices } from 'three/addons/utils/BufferGeometryUtils.js';
 import { createForest } from './forest.js';
 import { enrichStoneMaterial } from './stone-material.js';
-import { GARDEN_WIDTH, GARDEN_DEPTH, COLUMN_COUNT, ROW_COUNT } from './terrain.js';
+import { GARDEN_WIDTH, GARDEN_DEPTH, COLUMN_COUNT, ROW_COUNT, sampleHeight } from './terrain.js';
 
 export function seededRandom(seed) {
   let currentSeed = seed;
@@ -295,7 +295,35 @@ export function createStone(definition, rockMaterial, mossMaterial) {
   }
   mossGeometry.computeVertexNormals();
   const moss = new THREE.Mesh(mossGeometry, mossMaterial); moss.castShadow = true; moss.receiveShadow = true; group.add(moss);
+  group.userData.moss = moss;
+  group.userData.mossBasePositions = mossPositions.array.slice();
   group.scale.setScalar(definition.size); group.rotation.y = definition.rotation;
   group.position.set(definition.positionX, 0, definition.positionZ);
   return group;
+}
+
+// The rock remains rigid; the moss is a volume rooted in the actual sand at
+// every point of its footprint, including after rotation, scaling or sculpting.
+export function seatStoneOnTerrain(group, heights, terrainRevision) {
+  const previousFit = group.userData.terrainFit;
+  if (terrainRevision !== undefined && previousFit && previousFit.heights === heights && previousFit.revision === terrainRevision && previousFit.positionX === group.position.x && previousFit.positionZ === group.position.z && previousFit.rotation === group.rotation.y && previousFit.scale === group.scale.x) return false;
+  const supportHeight = sampleHeight(heights, group.position.x, group.position.z);
+  group.position.y = supportHeight;
+  const moss = group.userData.moss;
+  const basePositions = group.userData.mossBasePositions;
+  const positions = moss.geometry.attributes.position;
+  const scale = group.scale.x;
+  const rotationCosine = Math.cos(group.rotation.y), rotationSine = Math.sin(group.rotation.y);
+  let changed = false;
+  for (let vertexIndex = 0; vertexIndex < positions.count; vertexIndex++) {
+    const localX = basePositions[vertexIndex * 3], localZ = basePositions[vertexIndex * 3 + 2];
+    const worldX = group.position.x + (localX * rotationCosine + localZ * rotationSine) * scale;
+    const worldZ = group.position.z + (localZ * rotationCosine - localX * rotationSine) * scale;
+    const localHeight = basePositions[vertexIndex * 3 + 1] + (sampleHeight(heights, worldX, worldZ) - supportHeight) / scale;
+    if (Math.abs(positions.getY(vertexIndex) - localHeight) > .00001) changed = true;
+    positions.setY(vertexIndex, localHeight);
+  }
+  if (changed) { positions.needsUpdate = true; moss.geometry.computeVertexNormals(); moss.geometry.computeBoundingSphere(); }
+  if (terrainRevision !== undefined) group.userData.terrainFit = { heights, revision: terrainRevision, positionX: group.position.x, positionZ: group.position.z, rotation: group.rotation.y, scale };
+  return changed;
 }

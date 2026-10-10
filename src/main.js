@@ -4,7 +4,7 @@ import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { SSAOPass } from 'three/addons/postprocessing/SSAOPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
-import { createGardenScene, createStone, originalStones, seededRandom } from './scene.js';
+import { createGardenScene, createStone, seatStoneOnTerrain, originalStones, seededRandom } from './scene.js';
 import { createInitialHeights, applyBrush, sampleHeight, resampleSavedHeights, clamp, COLUMN_COUNT, ROW_COUNT, RAKE_TOOTH_SPACING, RAKE_HALF_DEPTH } from './terrain.js';
 import { createRakePath, advanceRakePath, planRakeContact } from './rake-path.js';
 import './style.css';
@@ -31,7 +31,7 @@ renderer.outputColorSpace = THREE.SRGBColorSpace;
 const { scene, sand, sunlight, hemisphere, fillLight, rockMaterial, mossMaterial, temple, forest } = createGardenScene();
 let renderRequested = true;
 const camera = new THREE.PerspectiveCamera(64, innerWidth / innerHeight, .1, 150);
-camera.position.set(.6, 2.7, 11.25);
+camera.position.set(0, 2.7, 11.25);
 const controls = new OrbitControls(camera, canvas);
 controls.target.set(0, .38, -.6);
 controls.enableDamping = true; controls.dampingFactor = .065;
@@ -54,6 +54,7 @@ composer.addPass(new OutputPass());
 ambientOcclusion.setSize(Math.ceil(innerWidth * .65), Math.ceil(innerHeight * .65));
 
 let heights = createInitialHeights(originalStones);
+let terrainRevision = 0;
 const stoneGroup = new THREE.Group(); scene.add(stoneGroup);
 let activeTool = 'rake';
 let brushDiameter = 1.6;
@@ -122,7 +123,7 @@ function disposeStone(stone) {
 
 function addStone(definition) {
   const stone = createStone(definition, rockMaterial, mossMaterial);
-  stone.position.y = sampleHeight(heights, definition.positionX, definition.positionZ);
+  seatStoneOnTerrain(stone, heights, terrainRevision);
   stoneGroup.add(stone); updateStoneCount(); return stone;
 }
 
@@ -162,6 +163,7 @@ function validateSavedGarden(saved) {
 }
 
 function updateTerrain() {
+  terrainRevision++;
   renderRequested = true;
   const positions = sand.geometry.attributes.position;
   const colors = sand.geometry.attributes.color;
@@ -177,7 +179,7 @@ function updateTerrain() {
   for (const stone of stoneGroup.children) {
     const nextHeight = sampleHeight(heights, stone.position.x, stone.position.z);
     if (Math.abs(stone.position.y - nextHeight) > .001) renderer.shadowMap.needsUpdate = true;
-    stone.position.y = nextHeight;
+    if (seatStoneOnTerrain(stone, heights, terrainRevision)) renderer.shadowMap.needsUpdate = true;
   }
   terrainNeedsUpdate = false;
 }
@@ -243,6 +245,23 @@ function updateDiameter(value) {
   brushDiameter = clamp(Number(value), .4, 4.5);
   document.querySelector('#diameter').value = brushDiameter;
   document.querySelector('#diameter-label').textContent = `${brushDiameter.toFixed(2)} m`;
+}
+
+function updateStoneSize(value) {
+  const nextSize = clamp(Number(value), .3, 2);
+  if (selectedStone && Math.abs(selectedStone.scale.x - nextSize) > .0001) {
+    rememberGarden();
+    selectedStone.scale.setScalar(nextSize);
+    selectedStone.userData.definition.size = nextSize;
+    const position = clampStonePosition(selectedStone.position.x, selectedStone.position.z, nextSize);
+    selectedStone.position.x = position.x; selectedStone.position.z = position.z;
+    selectedStone.userData.definition.positionX = position.x; selectedStone.userData.definition.positionZ = position.z;
+    seatStoneOnTerrain(selectedStone, heights);
+  }
+  chosenStoneSize = nextSize;
+  document.querySelector('#stone-size').value = nextSize;
+  document.querySelector('#stone-size-label').textContent = `${nextSize.toFixed(2)}×`;
+  makeGhost(); renderer.shadowMap.needsUpdate = true; renderRequested = true;
 }
 
 function updatePointer(event) {
@@ -345,7 +364,12 @@ canvas.addEventListener('pointerdown', function beginGesture(event) {
   if (activeTool === 'stone') {
     const hitStone = stoneIntersection();
     rememberGarden();
-    if (hitStone) { selectedStone = hitStone; draggedStone = hitStone; canvas.style.cursor = 'grabbing'; }
+    if (hitStone) {
+      selectedStone = hitStone; draggedStone = hitStone; canvas.style.cursor = 'grabbing';
+      chosenStoneSize = hitStone.userData.definition.size;
+      document.querySelector('#stone-size').value = chosenStoneSize;
+      document.querySelector('#stone-size-label').textContent = `${chosenStoneSize.toFixed(2)}×`;
+    }
     else {
       if (stoneGroup.children.length >= 80) { history.pop(); showToast('Let the stones breathe. Move or remove one first.'); return; }
       const position = clampStonePosition(point.x, point.z, chosenStoneSize);
@@ -385,7 +409,7 @@ canvas.addEventListener('pointermove', function movePointer(event) {
     if (point) {
       const position = clampStonePosition(point.x, point.z, draggedStone.userData.definition.size);
       draggedStone.position.x = position.x; draggedStone.position.z = position.z;
-      draggedStone.position.y = sampleHeight(heights, position.x, position.z);
+      seatStoneOnTerrain(draggedStone, heights);
       draggedStone.userData.definition.positionX = position.x; draggedStone.userData.definition.positionZ = position.z;
       renderer.shadowMap.needsUpdate = true;
     }
@@ -411,7 +435,7 @@ document.querySelector('#season').addEventListener('change', function changeSeas
 document.querySelector('#diameter').addEventListener('input', function changeDiameter(event) { updateDiameter(event.target.value); });
 document.querySelector('#strength').addEventListener('input', function changePressure(event) { brushPressure = Number(event.target.value) / 100; document.querySelector('#strength-label').textContent = `${event.target.value}%`; });
 document.querySelector('#stone-size').addEventListener('input', function changeStoneSize(event) {
-  chosenStoneSize = Number(event.target.value); document.querySelector('#stone-size-label').textContent = `${chosenStoneSize.toFixed(1)}×`; makeGhost();
+  updateStoneSize(event.target.value);
 });
 document.querySelector('#undo-button').addEventListener('click', undo);
 document.querySelector('#save-button').addEventListener('click', function saveGarden() {
@@ -471,7 +495,7 @@ document.querySelector('#view-button').addEventListener('click', function change
   renderer.shadowMap.needsUpdate = true; renderRequested = true;
   controls.minDistance = 5; controls.maxDistance = 24;
   controls.minPolarAngle = .17; controls.maxPolarAngle = 1.5;
-  viewTransition = { startPosition: camera.position.clone(), startTarget: controls.target.clone(), endPosition: new THREE.Vector3(...(isElevatedView ? [0, 14, 12.5] : [.6, 2.7, 11.25])), endTarget: new THREE.Vector3(0, .2, -.6), elapsed: 0 };
+  viewTransition = { startPosition: camera.position.clone(), startTarget: controls.target.clone(), endPosition: new THREE.Vector3(...(isElevatedView ? [0, 14, 12.5] : [0, 2.7, 11.25])), endTarget: new THREE.Vector3(0, isElevatedView ? .2 : .38, -.6), elapsed: 0 };
   // The veranda roof is behind the elevated camera's sightline once it rises.
   document.querySelector('#view-button').innerHTML = `${isElevatedView ? 'Above the garden' : 'On the veranda'} <span>⇄</span>`;
 });
@@ -490,16 +514,26 @@ document.querySelector('#return-button').addEventListener('click', function retu
 window.addEventListener('keydown', function handleKey(event) {
   if (guideDialog.open || resetDialog.open) return;
   if (event.key === 'Escape') { setContemplating(false); closeTools(); return; }
-  if (event.target.matches('input, textarea, select') || isContemplating) return;
-  if (event.key === '[' || event.key === ']') { event.preventDefault(); updateDiameter(brushDiameter + (event.key === '[' ? -.15 : .15)); }
+  if (event.target.matches('input, textarea, select')) return;
+  if (event.key.toLowerCase() === 'f') { event.preventDefault(); performanceMeter.hidden = !performanceMeter.hidden; return; }
+  if (isContemplating) return;
+  if (event.key === '[' || event.key === ']') {
+    event.preventDefault();
+    const adjustment = event.key === '[' ? -1 : 1;
+    if (activeTool === 'stone') updateStoneSize((selectedStone ? selectedStone.userData.definition.size : chosenStoneSize) + adjustment * .1);
+    else updateDiameter(brushDiameter + adjustment * .15);
+  }
   if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'z') { event.preventDefault(); undo(); return; }
   if (/^[1-6]$/.test(event.key)) setTool(['rake', 'raise', 'press', 'push', 'smooth', 'stone'][Number(event.key) - 1]);
   if (event.key.toLowerCase() === 'r' && activeTool === 'stone') {
     renderer.shadowMap.needsUpdate = true; renderRequested = true;
-    if (selectedStone) { rememberGarden(); selectedStone.rotation.y += Math.PI / 9; selectedStone.userData.definition.rotation = selectedStone.rotation.y; }
+    if (selectedStone) { rememberGarden(); selectedStone.rotation.y += Math.PI / 9; selectedStone.userData.definition.rotation = selectedStone.rotation.y; seatStoneOnTerrain(selectedStone, heights); }
     else if (ghostStone) ghostStone.rotation.y += Math.PI / 9;
   }
-  if ((event.key === 'Delete' || event.key === 'Backspace') && selectedStone && activeTool === 'stone') { event.preventDefault(); rememberGarden(); disposeStone(selectedStone); selectedStone = null; updateStoneCount(); showToast('A little more space.'); }
+  if ((event.key.toLowerCase() === 'e' || event.key === 'Delete' || event.key === 'Backspace') && activeTool === 'stone') {
+    const stoneToErase = selectedStone || (pointerIsInside ? stoneIntersection() : null);
+    if (stoneToErase) { event.preventDefault(); rememberGarden(); disposeStone(stoneToErase); selectedStone = null; draggedStone = null; updateStoneCount(); showToast('A little more space.'); }
+  }
 });
 
 let audioContext = null;
@@ -541,10 +575,23 @@ try {
 updateTerrain(); setTool('rake');
 document.querySelector('#undo-button').disabled = true;
 const frameClock = new THREE.Clock();
+const performanceMeter = document.createElement('output');
+performanceMeter.id = 'performance-meter'; performanceMeter.hidden = true;
+performanceMeter.textContent = 'Measuring…'; performanceMeter.title = 'Rendered frames per second. Move or sculpt to measure; F hides this readout.';
+document.querySelector('#experience').append(performanceMeter);
+let frameWindowStart = performance.now();
+let framesRenderedInWindow = 0;
+let measuredFramesPerSecond = 0;
+document.addEventListener('visibilitychange', function pauseHiddenGarden() {
+  if (document.hidden) { endGesture(); pointerIsInside = false; }
+  frameWindowStart = performance.now(); framesRenderedInWindow = 0;
+  renderRequested = true;
+});
 let frameCount = 0;
 function animate() {
   requestAnimationFrame(animate);
   const frameDuration = frameClock.getDelta();
+  if (document.hidden) return;
   const elapsedSeconds = Math.min(frameDuration, .06);
   if (viewTransition) {
     viewTransition.elapsed += frameDuration;
@@ -566,12 +613,18 @@ function animate() {
   }
   if (ghostStone) {
     ghostStone.visible = !!point && !isContemplating && !draggedStone && !stoneIntersection();
-    if (point) { const position = clampStonePosition(point.x, point.z, chosenStoneSize); ghostStone.position.set(position.x, sampleHeight(heights, position.x, position.z), position.z); }
+    if (point && ghostStone.visible) { const position = clampStonePosition(point.x, point.z, chosenStoneSize); ghostStone.position.x = position.x; ghostStone.position.z = position.z; seatStoneOnTerrain(ghostStone, heights, terrainRevision); }
   }
   selectionRing.visible = !!selectedStone && !isContemplating;
   if (selectedStone) { selectionRing.position.copy(selectedStone.position); selectionRing.position.y += .08; selectionRing.scale.setScalar(selectedStone.userData.definition.size * 1.4); }
   if (frameCount < 3 || renderRequested || cameraChanged || (isSculpting && activeTool !== 'rake') || viewTransition) {
-    composer.render(); renderRequested = false;
+    composer.render(); renderRequested = false; framesRenderedInWindow++;
+  }
+  const frameWindowEnd = performance.now();
+  if (frameWindowEnd - frameWindowStart >= 1000) {
+    measuredFramesPerSecond = framesRenderedInWindow * 1000 / (frameWindowEnd - frameWindowStart);
+    performanceMeter.textContent = framesRenderedInWindow ? `${Math.round(measuredFramesPerSecond)} fps` : 'Idle · no rendering';
+    frameWindowStart = frameWindowEnd; framesRenderedInWindow = 0;
   }
   frameCount++;
   if (frameCount === 3) {
@@ -587,5 +640,5 @@ animate();
 // application entry-point exports are removed by the production build.
 export function inspectGarden() {
   const point = terrainIntersection();
-  return { cameraPosition: camera.position.toArray(), groundPoint: point ? point.toArray() : null, isElevatedView, stoneCount: stoneGroup.children.length, minimumPolarAngle: controls.minPolarAngle, rakeBarVisible: rakeBar.visible, brushRingVisible: brushRing.visible, rakeDirection: strokeDirection.toArray(), rakeGroundPosition: rakePath ? [rakePath.secondX, rakePath.secondZ] : null, brushDiameter, chosenSeason, forest: forest.inspectSeason(), terrainHeightEnergy: heights.reduce(function sumSquaredHeight(total, height) { return total + height * height; }, 0) };
+  return { cameraPosition: camera.position.toArray(), groundPoint: point ? point.toArray() : null, isElevatedView, stoneCount: stoneGroup.children.length, selectedStoneSize: selectedStone ? selectedStone.userData.definition.size : null, chosenStoneSize, minimumPolarAngle: controls.minPolarAngle, rakeBarVisible: rakeBar.visible, brushRingVisible: brushRing.visible, rakeDirection: strokeDirection.toArray(), rakeGroundPosition: rakePath ? [rakePath.secondX, rakePath.secondZ] : null, brushDiameter, chosenSeason, forest: forest.inspectSeason(), terrainHeightEnergy: heights.reduce(function sumSquaredHeight(total, height) { return total + height * height; }, 0) };
 }

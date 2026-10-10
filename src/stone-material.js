@@ -50,6 +50,18 @@ export function enrichStoneMaterial(material) {
       mineralColor = mix(mineralColor, vec3(0.34, 0.325, 0.275), mineralVein * 0.35);
       mineralColor += mineralFlecks * vec3(0.18, 0.175, 0.15);
       mineralColor *= 1.0 - mineralPores * 0.45 - mineralCrevice * 0.20;
+      // Uneven iron-oxide blooms and pale mineral staining, unique to each
+      // seed. Broad patches break into fine speckles instead of a uniform tint.
+      float stainVariation = mineralHash(vec3(stoneSurfaceSeed, 7.3, 2.1));
+      float stainCloud = mineralNoise(mineralPosition * vec3(2.8, 1.7, 3.4) + vec3(13.0, 2.0, 7.0));
+      float rustCoverage = smoothstep(0.60, 0.80, stainCloud + (mineralGrain - 0.5) * 0.18);
+      float rustPresence = step(0.72, stainVariation);
+      float rustStrength = (0.12 + (stainVariation - 0.72) * 0.35) * rustPresence * rustCoverage;
+      vec3 rustColor = mix(vec3(0.12, 0.047, 0.019), vec3(0.28, 0.14, 0.055), mineralGrain);
+      mineralColor = mix(mineralColor, rustColor, rustStrength);
+      float paleStain = smoothstep(0.70, 0.88, mineralNoise(mineralPosition * 4.3 + vec3(3.0, 19.0, 1.0)));
+      float paleStainPresence = step(0.80, mineralHash(vec3(stoneSurfaceSeed, 11.8, 6.4)));
+      mineralColor = mix(mineralColor, vec3(0.29, 0.285, 0.25), paleStain * paleStainPresence * .10);
       float baseWeathering = (1.0 - smoothstep(0.02, 0.28, stoneSurfacePosition.y)) * smoothstep(0.4, 0.65, mineralGrain);
       mineralColor = mix(mineralColor, vec3(0.07, 0.085, 0.038), baseWeathering * 0.45);
       diffuseColor.rgb = mineralColor;
@@ -68,6 +80,6 @@ export function enrichStoneMaterial(material) {
       normal = normalize(abs(mineralDeterminant) * normal - mineralGradient);
     `);
   };
-  material.customProgramCacheKey = function stoneShaderKey() { return 'weathered-mineral-stone-v1'; };
+  material.customProgramCacheKey = function stoneShaderKey() { return 'weathered-mineral-stone-v3-soft-stains'; };
   return material;
 }

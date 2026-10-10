@@ -7,7 +7,7 @@
 #tool-sign small{font:7px 'DM Sans',sans-serif;letter-spacing:1.8px;opacity:.75}
 #tool-sign:hover,#tool-sign:focus-visible{background:#5d6242;transform:translateY(-2px)}
 .tool-dock .inspector{position:absolute;right:0;top:auto;bottom:78px;width:276px;max-height:calc(100dvh - 118px);overflow:auto;padding:22px;background:rgba(241,238,227,.72);backdrop-filter:blur(18px) saturate(.8);-webkit-backdrop-filter:blur(18px) saturate(.8);opacity:0;visibility:hidden;transform:translateY(8px);pointer-events:none;transition:opacity .22s,transform .22s,visibility .22s}
-.tool-dock .toolbar{position:static;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));width:100%;margin:16px 0 20px;transform:none;padding:4px;gap:3px;background:#f6f2e52b;border:1px solid #fffffe4d;box-shadow:none;backdrop-filter:none}
+.tool-dock .toolbar{position:static;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));width:100%;margin:16px 0 20px;transform:none;padding:0;gap:3px;background:transparent;border:0;box-shadow:none;backdrop-filter:none}
 .tool-dock .toolbar button{min-width:0;width:100%;height:49px;font-size:8px}
 .tool-dock .tool-divider{display:none}
 .tool-dock .tool-icon{font-size:23px}
@@ -20,6 +20,7 @@
 .tool-dock .garden-actions button{font-size:8px}
 .tool-dock .setting-row label{margin:0;font:inherit;color:inherit}
 #season{font:inherit;font-size:11px;color:#687451;border:1px solid #8b947354;border-radius:3px;padding:6px 8px;background:#f3f0e6}
+#performance-meter{position:fixed;left:14px;bottom:14px;z-index:6;padding:6px 9px;border-radius:3px;background:#172018b3;color:#eeeade;font:11px/1.4 system-ui,sans-serif;pointer-events:none}
 .contemplating .tool-dock{display:none}
 #toast{bottom:35px;max-width:calc(100% - 190px);text-align:center;line-height:1.6}
 @media(max-width:700px){
@@ -36,3 +37,44 @@
   #toast.visible{transform:translateY(0)}
 }
 @media(prefers-reduced-motion:reduce){.interface,.tool-dock .inspector,.tool-dock .toolbar,#tool-sign{transition:none}}
+
+/* The panel is only a faint veil. Contrast belongs to its text and controls. */
+.tool-dock .inspector{padding:20px;background:rgba(22,31,24,.18);border-color:#f4f0dc24;box-shadow:0 10px 30px #0e170d12;backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);color:#f8f5e8;text-shadow:0 1px 3px #0c160dcc;scrollbar-width:thin;scrollbar-color:#f0eed48a transparent}
+.tool-dock .panel-heading{font-size:9px;line-height:16px;letter-spacing:1.5px;color:#eee9d8}
+.tool-dock .small-symbol{font-size:19px}
+.tool-dock .inspector h3{font-size:23px;line-height:1.3;letter-spacing:-.5px;margin:8px 0}
+.tool-dock .inspector>p{font-size:11px;line-height:1.6;color:#eeeedd;margin:0 0 16px}
+.tool-dock .toolbar{margin:16px 0;padding:0;gap:6px}
+.tool-dock .toolbar button{height:50px;font-size:10px;line-height:14px;color:#fffced;text-shadow:0 1px 3px #0c160dcc;background:#1b281c33;border:1px solid #f4f0dc20}
+.tool-dock .toolbar button:hover{background:#ecedd42b}
+.tool-dock .toolbar button.active{background:#ecebdce8;color:#293c28;text-shadow:none;border-color:#fff9df99}
+.tool-dock .toolbar .tool-icon{font-size:24px;line-height:25px}
+.tool-dock .toolbar kbd{font-size:8px;opacity:.7}
+.tool-dock .inspector label{font-size:11px;line-height:16px;margin:16px 0 10px}
+.tool-dock .inspector output{font-size:11px;color:#fffced;font-variant-numeric:tabular-nums}
+.tool-dock input[type=range]{background:#f0eed45c}
+.tool-dock input[type=range]::-webkit-slider-thumb{background:#f5f2df;border-color:#637354;box-shadow:0 0 0 1px #eef0dba6}
+.tool-dock .range-hints{font-size:8px;letter-spacing:.5px;color:#eee9d8;margin-top:10px}
+.tool-dock .range-hints>span:nth-child(2){font-size:8px}
+.tool-dock kbd{font-size:9px;border-color:#f0eed44d;opacity:1}
+.tool-dock .panel-divider{background:#f0eed430;margin:18px 0}
+.tool-dock .setting-row{min-height:30px;margin:12px 0;font-size:11px;line-height:16px}
+.tool-dock .setting-row label{margin:0}
+.tool-dock .text-button{font-size:11px;color:#fffced;text-shadow:0 1px 3px #0c160dcc}
+.tool-dock .segmented{border-color:#f0eed44d;background:#15221833}
+.tool-dock .segmented button{color:#f5f2df;text-shadow:0 1px 3px #0c160dcc}
+.tool-dock .segmented button.active{background:#ecebdce8;color:#293c28;text-shadow:none}
+.tool-dock #season{font-size:11px;color:#fffced;border-color:#f0eed44d;background:#26372bbb;padding:6px 8px}
+.tool-dock #season option{background:#29382b;color:#fffced}
+.tool-dock .garden-actions{display:grid!important;grid-template-columns:1fr 1fr;gap:8px}
+.tool-dock .garden-actions button{padding:8px;font-size:11px;line-height:16px;color:#fffced;text-shadow:0 1px 3px #0c160dcc;background:#1b281c55;border:1px solid #f0eed433;border-radius:3px}
+.tool-dock .garden-actions button:disabled{opacity:.45;cursor:default}
+.tool-dock .inspector .save-status{font-size:10px;line-height:16px;color:#eee9d8;margin:12px 0 0;justify-content:center}
+.tool-dock .header-actions{border-color:#f0eed430;margin-top:16px;padding-top:16px;gap:10px}
+.tool-dock .header-actions .icon-button,.tool-dock .outline-button{color:#fffced;border-color:#f0eed44d;background:#1b281c55;text-shadow:0 1px 3px #0c160dcc}
+.tool-dock .outline-button{font-size:11px;line-height:16px;padding:8px 10px}
+.tool-dock .stone-options{gap:6px;margin-top:16px}
+.tool-dock .stone-choice{font-size:9px;line-height:14px;padding:8px 2px;color:#fffced;border-color:#f0eed433;background:#1b281c44;text-shadow:0 1px 3px #0c160dcc}
+.tool-dock .stone-choice.active{background:#ecebdce8;color:#293c28;text-shadow:none}
+.tool-dock .microcopy{font-size:10px;line-height:1.7;color:#eee9d8;margin:12px 0 0}
+@media(max-width:700px){.tool-dock .inspector{padding:18px}.tool-dock .setting-row{margin:12px 0}}
