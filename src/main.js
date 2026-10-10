@@ -468,6 +468,19 @@ document.querySelector('#save-button').addEventListener('click', function saveGa
 const guideDialog = document.querySelector('#guide-dialog');
 document.querySelector('#help-button').addEventListener('click', function openGuide() { guideDialog.showModal(); });
 guideDialog.querySelector('.dialog-close').addEventListener('click', function closeGuide() { guideDialog.close(); });
+const wallpaperDialog = document.querySelector('#wallpaper-dialog');
+const wallpaperButton = document.querySelector('#wallpaper-button');
+wallpaperButton.addEventListener('click', function openWallpaperSetup() {
+  endGesture();
+  wallpaperDialog.showModal();
+});
+wallpaperDialog.querySelector('.dialog-close').addEventListener('click', function closeWallpaperSetup() { wallpaperDialog.close(); });
+wallpaperDialog.addEventListener('close', function restoreWallpaperTrigger() { openTools(); wallpaperButton.focus(); });
+document.querySelector('#wallpaper-package').addEventListener('click', function explainWallpaperDownload() {
+  const downloadStatus = document.querySelector('#wallpaper-download-status');
+  downloadStatus.hidden = false;
+  downloadStatus.textContent = 'Next, find ryoanji-wallpaper.zip in Downloads and drag it into Lively.';
+});
 const resetDialog = document.querySelector('#reset-dialog');
 document.querySelector('#reset-button').addEventListener('click', function openReset() { resetDialog.showModal(); });
 document.querySelector('#cancel-reset').addEventListener('click', function cancelReset() { resetDialog.close(); });
@@ -535,7 +548,7 @@ document.querySelector('#return-button').addEventListener('click', function retu
 
 window.addEventListener('keydown', function handleKey(event) {
   if (wallpaperOptions.enabled) return;
-  if (guideDialog.open || resetDialog.open) return;
+  if (guideDialog.open || resetDialog.open || wallpaperDialog.open) return;
   if (event.key === 'Escape') { setContemplating(false); closeTools(); return; }
   if (event.target.matches('input, textarea, select') || event.target.isContentEditable) return;
   if (event.key.toLowerCase() === 'f') { event.preventDefault(); performanceMeter.hidden = !performanceMeter.hidden; return; }
