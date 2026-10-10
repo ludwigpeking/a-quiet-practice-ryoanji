@@ -1,4 +1,4 @@
-export const RAKE_HEADING_SMOOTHING_PIXELS = 7;
+export const RAKE_HEADING_SMOOTHING_PIXELS = 20;
 
 // Distance-based filtering behaves the same at different pointer event rates.
 // A rake bar has no preferred end, so reversing never causes a 180-degree snap.

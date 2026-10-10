@@ -4,8 +4,9 @@ import { smoothRakeHeading } from '../src/rake-heading.js';
 
 test('one-pixel direction noise is damped, but a deliberate turn catches up', function smoothNoise() {
   const quarterTurn = Math.PI / 2;
-  assert.ok(smoothRakeHeading(0, quarterTurn, 1) < quarterTurn * .15);
-  assert.ok(smoothRakeHeading(0, quarterTurn, 21) > quarterTurn * .94);
+  assert.ok(smoothRakeHeading(0, quarterTurn, 1) < quarterTurn * .055);
+  assert.ok(smoothRakeHeading(0, quarterTurn, 4) < quarterTurn * .20);
+  assert.ok(smoothRakeHeading(0, quarterTurn, 60) > quarterTurn * .94);
 });
 test('heading filter depends on travel distance instead of pointer event frequency', function distanceBasedFilter() {
   let angle = 0;

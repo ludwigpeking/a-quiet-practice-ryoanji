@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { forestPalettes, isDeciduousFamily, seasonalLeafRetention } from './forest-palette.js';
+import { createTreeBranches } from './tree-branches.js';
 
 // Overlapping evergreen understory closes the horizon; distinct crown shapes
 // and leaf sprays keep the taller layers readable above it.
@@ -9,10 +10,8 @@ export function createForest(scene, createLeafTexture, randomNumber) {
   const leafGeometry = new THREE.PlaneGeometry(1, 1);
   const foliageBatches = new Map();
   const canopyCores = [];
-  const barkMaterial = new THREE.MeshStandardMaterial({ color: '#555343', roughness: 1 });
-  const trunkGeometry = new THREE.CylinderGeometry(.45, 1, 1, 7);
-  const branchDirection = new THREE.Vector3();
-  const verticalDirection = new THREE.Vector3(0, 1, 0);
+  const treeBranches = createTreeBranches(scene);
+  const branch = treeBranches.branch;
 
   for (const species of ['broadleaf', 'maple', 'conifer', 'cherry']) {
     const material = new THREE.MeshStandardMaterial({ map: createLeafTexture(species), alphaTest: .45, side: THREE.DoubleSide, roughness: 1 });
@@ -20,15 +19,6 @@ export function createForest(scene, createLeafTexture, randomNumber) {
   }
   const cherryBlossomTexture = foliageBatches.get('cherry').material.map;
   const cherryLeafTexture = createLeafTexture('broadleaf');
-
-  function branch(startPosition, endPosition, radius) {
-    branchDirection.subVectors(endPosition, startPosition);
-    const mesh = new THREE.Mesh(trunkGeometry.clone(), barkMaterial);
-    mesh.position.copy(startPosition).add(endPosition).multiplyScalar(.5);
-    mesh.quaternion.setFromUnitVectors(verticalDirection, branchDirection.clone().normalize());
-    mesh.scale.set(radius, branchDirection.length(), radius);
-    mesh.castShadow = true; mesh.receiveShadow = true; scene.add(mesh);
-  }
 
   function crown(species, centerX, centerY, centerZ, radiusX, radiusY, radiusZ, sprayCount, hue, lightness, autumnHue = .06, seasonalFamily = species === 'conifer' ? 'cedar' : species) {
     // Dark, opaque inner foliage prevents pale sky from showing through every
@@ -64,13 +54,7 @@ export function createForest(scene, createLeafTexture, randomNumber) {
       const seasonalFamily = (shrubIndex + bandIndex * 2) % 5 < 2 ? 'understory' : 'broadleaf';
       crown('broadleaf', centerX, shrubHeight * .47, centerZ, 2 + randomNumber() * .8, shrubHeight * .72, 1.9, 85, .22 + randomNumber() * .095, .27 + randomNumber() * .075 - bandIndex * .025, .06, seasonalFamily);
       if (seasonalFamily === 'understory') {
-        const root = new THREE.Vector3(centerX, -.3, centerZ);
-        for (let twigIndex = 0; twigIndex < 7; twigIndex++) {
-          const twigAngle = twigIndex * 2.4;
-          const tip = new THREE.Vector3(centerX + Math.cos(twigAngle) * 1.3, shrubHeight * (.55 + twigIndex * .06), centerZ + Math.sin(twigAngle) * 1.3);
-          branch(root, tip, .035);
-          branch(tip.clone().lerp(root, .3), tip.clone().add(new THREE.Vector3(.5, .25, -.4)), .014);
-        }
+        treeBranches.shrub(new THREE.Vector3(centerX, -.3, centerZ), shrubHeight);
       }
     }
   }
@@ -87,7 +71,7 @@ export function createForest(scene, createLeafTexture, randomNumber) {
     const treeHeight = 5.6 + randomNumber() * 3.4;
     const trunkLean = (randomNumber() - .5) * 1.3;
     const junction = new THREE.Vector3(trunkX + trunkLean, treeHeight * .64, trunkZ);
-    branch(new THREE.Vector3(trunkX, -.7, trunkZ), junction, .20);
+    const crownCenters = [];
     const hue = .20 + randomNumber() * .11;
     const treeLightness = .32 + randomNumber() * .09;
     const autumnHue = [.005, .035, .075, .12][treeIndex % 4];
@@ -96,15 +80,10 @@ export function createForest(scene, createLeafTexture, randomNumber) {
       const azimuth = branchIndex * 2.4 + treeIndex;
       const reach = 1.8 + randomNumber() * 1.7;
       const crownCenter = new THREE.Vector3(junction.x + Math.cos(azimuth) * reach, treeHeight - .6 + randomNumber() * 1.4, trunkZ + Math.sin(azimuth) * reach);
-      branch(junction, crownCenter, .065);
-      for (let twigIndex = 0; twigIndex < 5; twigIndex++) {
-        const twigAngle = twigIndex * 2.4 + branchIndex;
-        const tip = crownCenter.clone().add(new THREE.Vector3(Math.cos(twigAngle) * 2.4, .2 + twigIndex * .2, Math.sin(twigAngle) * 2));
-        branch(crownCenter, tip, .028);
-        for (const side of [-1, 1]) branch(tip.clone().lerp(crownCenter, .35), tip.clone().add(new THREE.Vector3(side * .55, .35, .5)), .012);
-      }
+      crownCenters.push(crownCenter);
       crown(crownSpecies, crownCenter.x, crownCenter.y, crownCenter.z, 3.1 + randomNumber() * 1.1, 1.55 + randomNumber() * .7, 2.8, 160, hue, treeLightness, autumnHue);
     }
+    treeBranches.deciduousTree(new THREE.Vector3(trunkX, -.7, trunkZ), crownCenters, .25 + treeIndex % 3 * .025, crownSpecies);
   }
 
   // Pines: irregular horizontal pads on exposed, bent branches.
@@ -140,6 +119,33 @@ export function createForest(scene, createLeafTexture, randomNumber) {
     }
   }
 
+  // Return the grove along both outside walls. Broad, nearer crowns frame the
+  // seated view; taller trees behind them keep the side horizon enclosed.
+  for (const side of [-1, 1]) {
+    for (let treeIndex = 0; treeIndex < 4; treeIndex++) {
+      const trunkX = side * (16.6 + randomNumber() * 1.1);
+      const trunkZ = -7.5 + treeIndex * 4.1;
+      const treeHeight = 6.7 + randomNumber() * 2;
+      const species = treeIndex % 2 === 0 ? 'maple' : 'broadleaf';
+      const crownCenters = [];
+      for (let limbIndex = 0; limbIndex < 3; limbIndex++) {
+        const angle = limbIndex * 2.4 + treeIndex;
+        const center = new THREE.Vector3(trunkX + Math.cos(angle) * 1.25, treeHeight + (randomNumber() - .5) * 1.2, trunkZ + Math.sin(angle) * 1.7);
+        crownCenters.push(center);
+        crown(species, center.x, center.y, center.z, 3.1, 2.1, 3.3, 135, .22 + randomNumber() * .08, .33, [.005, .07, .12, .035][treeIndex]);
+      }
+      treeBranches.deciduousTree(new THREE.Vector3(trunkX, -.7, trunkZ), crownCenters, .30, species);
+      const cedarX = side * (22 + treeIndex % 2 * 1.7);
+      const cedarHeight = 15 + randomNumber() * 5;
+      branch(new THREE.Vector3(cedarX, -.7, trunkZ - 1), new THREE.Vector3(cedarX + side * .3, cedarHeight, trunkZ - 1), .27);
+      for (let tierIndex = 0; tierIndex < 6; tierIndex++) {
+        const tierFraction = tierIndex / 5;
+        const radius = 3.9 * (1 - tierFraction * .82);
+        crown('conifer', cedarX, cedarHeight * (.26 + tierFraction * .72), trunkZ - 1, radius, 2.3 - tierFraction, radius, 75, .30 + randomNumber() * .035, .27);
+      }
+    }
+  }
+
   const coreGeometry = new THREE.IcosahedronGeometry(1, 2);
   const corePositions = coreGeometry.attributes.position;
   for (let vertexIndex = 0; vertexIndex < corePositions.count; vertexIndex++) {
@@ -172,7 +178,6 @@ export function createForest(scene, createLeafTexture, randomNumber) {
     foliage.castShadow = true; foliage.receiveShadow = true; scene.add(foliage);
     batch.mesh = foliage;
   }
-  trunkGeometry.dispose();
   function seasonalColor(instance, season, isCore) {
     const palette = forestPalettes[instance.seasonalFamily][season];
     let palettePosition = THREE.MathUtils.clamp((instance.hue - .20) / .17, 0, 1) * (palette.length - 1);
