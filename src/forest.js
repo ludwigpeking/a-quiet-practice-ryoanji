@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { forestPalettes, isDeciduousFamily, seasonalLeafRetention } from './forest-palette.js';
 
 // Overlapping evergreen understory closes the horizon; distinct crown shapes
 // and leaf sprays keep the taller layers readable above it.
@@ -13,10 +14,12 @@ export function createForest(scene, createLeafTexture, randomNumber) {
   const branchDirection = new THREE.Vector3();
   const verticalDirection = new THREE.Vector3(0, 1, 0);
 
-  for (const species of ['broadleaf', 'maple', 'conifer']) {
+  for (const species of ['broadleaf', 'maple', 'conifer', 'cherry']) {
     const material = new THREE.MeshStandardMaterial({ map: createLeafTexture(species), alphaTest: .45, side: THREE.DoubleSide, roughness: 1 });
     foliageBatches.set(species, { material, instances: [] });
   }
+  const cherryBlossomTexture = foliageBatches.get('cherry').material.map;
+  const cherryLeafTexture = createLeafTexture('broadleaf');
 
   function branch(startPosition, endPosition, radius) {
     branchDirection.subVectors(endPosition, startPosition);
@@ -27,14 +30,14 @@ export function createForest(scene, createLeafTexture, randomNumber) {
     mesh.castShadow = true; mesh.receiveShadow = true; scene.add(mesh);
   }
 
-  function crown(species, centerX, centerY, centerZ, radiusX, radiusY, radiusZ, sprayCount, hue, lightness, autumnHue = .06) {
+  function crown(species, centerX, centerY, centerZ, radiusX, radiusY, radiusZ, sprayCount, hue, lightness, autumnHue = .06, seasonalFamily = species === 'conifer' ? 'cedar' : species) {
     // Dark, opaque inner foliage prevents pale sky from showing through every
     // leaf card. Its small irregular lobes are buried under the outer sprays.
     for (let lobeIndex = 0; lobeIndex < 3; lobeIndex++) {
       const lobeAngle = lobeIndex * Math.PI * 2 / 3 + randomNumber();
       canopyCores.push({
         position: [centerX + Math.cos(lobeAngle) * radiusX * .25, centerY + (randomNumber() - .5) * radiusY * .3, centerZ + Math.sin(lobeAngle) * radiusZ * .25],
-        scale: [radiusX * .61, radiusY * .72, radiusZ * .61], species, hue, autumnHue, lightness: lightness * .57,
+        scale: [radiusX * .61, radiusY * .72, radiusZ * .61], species, seasonalFamily, hue, autumnHue, lightness: lightness * .57,
       });
     }
     const instances = foliageBatches.get(species).instances;
@@ -47,7 +50,7 @@ export function createForest(scene, createLeafTexture, randomNumber) {
       transform.position.set(centerX + Math.cos(azimuth) * horizontalFactor * radiusX, centerY + elevation * radialFactor * radiusY, centerZ + Math.sin(azimuth) * horizontalFactor * radiusZ);
       transform.rotation.set((randomNumber() - .5) * 1.8, randomNumber() * Math.PI * 2, (randomNumber() - .5) * 1.3);
       transform.scale.set(spraySize * 1.25, spraySize, 1); transform.updateMatrix();
-      instances.push({ matrix: transform.matrix.clone(), species, hue: hue + (randomNumber() - .5) * .018, autumnHue: autumnHue + (randomNumber() - .5) * .014, lightness: lightness + (randomNumber() - .5) * .09 });
+      instances.push({ matrix: transform.matrix.clone(), species, seasonalFamily, retentionRank: sprayIndex / sprayCount, hue: hue + (randomNumber() - .5) * .018, autumnHue: autumnHue + (randomNumber() - .5) * .014, lightness: lightness + (randomNumber() - .5) * .09 });
     }
   }
 
@@ -58,7 +61,17 @@ export function createForest(scene, createLeafTexture, randomNumber) {
       const centerX = -37 + shrubIndex * 2.15 + (randomNumber() - .5) * .7;
       const centerZ = -9.6 - bandIndex * 3.7 - randomNumber() * 1.1;
       const shrubHeight = 2.5 + randomNumber() * 1.4 + bandIndex * .4;
-      crown('broadleaf', centerX, shrubHeight * .47, centerZ, 2 + randomNumber() * .8, shrubHeight * .72, 1.9, 85, .22 + randomNumber() * .095, .27 + randomNumber() * .075 - bandIndex * .025);
+      const seasonalFamily = (shrubIndex + bandIndex * 2) % 5 < 2 ? 'understory' : 'broadleaf';
+      crown('broadleaf', centerX, shrubHeight * .47, centerZ, 2 + randomNumber() * .8, shrubHeight * .72, 1.9, 85, .22 + randomNumber() * .095, .27 + randomNumber() * .075 - bandIndex * .025, .06, seasonalFamily);
+      if (seasonalFamily === 'understory') {
+        const root = new THREE.Vector3(centerX, -.3, centerZ);
+        for (let twigIndex = 0; twigIndex < 7; twigIndex++) {
+          const twigAngle = twigIndex * 2.4;
+          const tip = new THREE.Vector3(centerX + Math.cos(twigAngle) * 1.3, shrubHeight * (.55 + twigIndex * .06), centerZ + Math.sin(twigAngle) * 1.3);
+          branch(root, tip, .035);
+          branch(tip.clone().lerp(root, .3), tip.clone().add(new THREE.Vector3(.5, .25, -.4)), .014);
+        }
+      }
     }
   }
   for (const side of [-1, 1]) {
@@ -78,12 +91,19 @@ export function createForest(scene, createLeafTexture, randomNumber) {
     const hue = .20 + randomNumber() * .11;
     const treeLightness = .32 + randomNumber() * .09;
     const autumnHue = [.005, .035, .075, .12][treeIndex % 4];
+    const crownSpecies = treeIndex === 5 ? 'cherry' : 'maple';
     for (let branchIndex = 0; branchIndex < 4; branchIndex++) {
       const azimuth = branchIndex * 2.4 + treeIndex;
       const reach = 1.8 + randomNumber() * 1.7;
       const crownCenter = new THREE.Vector3(junction.x + Math.cos(azimuth) * reach, treeHeight - .6 + randomNumber() * 1.4, trunkZ + Math.sin(azimuth) * reach);
       branch(junction, crownCenter, .065);
-      crown('maple', crownCenter.x, crownCenter.y, crownCenter.z, 3.1 + randomNumber() * 1.1, 1.55 + randomNumber() * .7, 2.8, 160, hue, treeLightness, autumnHue);
+      for (let twigIndex = 0; twigIndex < 5; twigIndex++) {
+        const twigAngle = twigIndex * 2.4 + branchIndex;
+        const tip = crownCenter.clone().add(new THREE.Vector3(Math.cos(twigAngle) * 2.4, .2 + twigIndex * .2, Math.sin(twigAngle) * 2));
+        branch(crownCenter, tip, .028);
+        for (const side of [-1, 1]) branch(tip.clone().lerp(crownCenter, .35), tip.clone().add(new THREE.Vector3(side * .55, .35, .5)), .012);
+      }
+      crown(crownSpecies, crownCenter.x, crownCenter.y, crownCenter.z, 3.1 + randomNumber() * 1.1, 1.55 + randomNumber() * .7, 2.8, 160, hue, treeLightness, autumnHue);
     }
   }
 
@@ -101,7 +121,7 @@ export function createForest(scene, createLeafTexture, randomNumber) {
       const reach = 3.4 - tierIndex * .4;
       const crownCenter = new THREE.Vector3(junction.x + Math.cos(azimuth) * reach, treeHeight * .60 + tierIndex * 1.5, trunkZ + Math.sin(azimuth) * reach);
       branch(junction, crownCenter, .075);
-      crown('conifer', crownCenter.x, crownCenter.y, crownCenter.z, 3.3 - tierIndex * .3, 1.15, 2.4, 110, treeHue, treeLightness);
+      crown('conifer', crownCenter.x, crownCenter.y, crownCenter.z, 3.3 - tierIndex * .3, 1.15, 2.4, 110, treeHue, treeLightness, .06, 'pine');
     }
   }
 
@@ -154,17 +174,20 @@ export function createForest(scene, createLeafTexture, randomNumber) {
   }
   trunkGeometry.dispose();
   function seasonalColor(instance, season, isCore) {
-    let hue = instance.hue;
-    let saturation = instance.species === 'maple' ? .48 : .32;
-    let lightness = instance.lightness;
-    if (instance.species === 'maple') {
-      if (season === 'autumn') { hue = instance.autumnHue; saturation = .78; lightness *= 1.12; }
-      if (season === 'spring') { hue -= .035; saturation = .55; lightness *= 1.16; }
-    } else {
-      if (season === 'spring') { hue -= .012; lightness *= 1.07; }
-      if (season === 'winter') { saturation *= .74; lightness *= .90; }
+    const palette = forestPalettes[instance.seasonalFamily][season];
+    let palettePosition = THREE.MathUtils.clamp((instance.hue - .20) / .17, 0, 1) * (palette.length - 1);
+    if (instance.seasonalFamily === 'maple' && season === 'autumn') {
+      palettePosition = THREE.MathUtils.clamp(instance.autumnHue / .12, 0, 1) * (palette.length - 1);
     }
-    foliageColor.setHSL(hue, saturation, lightness * (isCore ? 1.15 : 1));
+    const paletteIndex = Math.floor(palettePosition);
+    foliageColor.set(palette[paletteIndex]);
+    foliageColor.lerp(new THREE.Color(palette[Math.min(paletteIndex + 1, palette.length - 1)]), palettePosition - paletteIndex);
+    // Texture and shading supply most of the contrast; avoid painting black
+    // cores and then shadowing them again. Color(hex) decodes sRGB to linear.
+    const sourceLightness = isCore ? instance.lightness / .57 : instance.lightness;
+    const brightnessFactor = THREE.MathUtils.clamp(sourceLightness / .33, .72, 1.35);
+    const blossomBrightness = instance.seasonalFamily === 'cherry' && season === 'spring' ? .8 : 1;
+    foliageColor.multiplyScalar(brightnessFactor * (isCore ? 1.8 : 2.2) * blossomBrightness);
     return foliageColor;
   }
   const hiddenMatrix = new THREE.Matrix4().makeScale(0, 0, 0);
@@ -172,15 +195,38 @@ export function createForest(scene, createLeafTexture, randomNumber) {
     for (let coreIndex = 0; coreIndex < canopyCores.length; coreIndex++) {
       const core = canopyCores[coreIndex];
       cores.setColorAt(coreIndex, seasonalColor(core, season, true));
-      cores.setMatrixAt(coreIndex, season === 'winter' && core.species === 'maple' ? hiddenMatrix : core.matrix);
+      const hideCore = isDeciduousFamily(core.seasonalFamily) && (season === 'winter' || season === 'spring');
+      cores.setMatrixAt(coreIndex, hideCore ? hiddenMatrix : core.matrix);
     }
     cores.instanceColor.needsUpdate = true; cores.instanceMatrix.needsUpdate = true;
     for (const [species, batch] of foliageBatches) {
-      batch.mesh.visible = !(season === 'winter' && species === 'maple');
-      for (let instanceIndex = 0; instanceIndex < batch.instances.length; instanceIndex++) batch.mesh.setColorAt(instanceIndex, seasonalColor(batch.instances[instanceIndex], season, false));
-      batch.mesh.instanceColor.needsUpdate = true;
+      for (let instanceIndex = 0; instanceIndex < batch.instances.length; instanceIndex++) {
+        const instance = batch.instances[instanceIndex];
+        batch.mesh.setColorAt(instanceIndex, seasonalColor(instance, season, false));
+        batch.mesh.setMatrixAt(instanceIndex, instance.retentionRank < seasonalLeafRetention(instance.seasonalFamily, season) ? instance.matrix : hiddenMatrix);
+      }
+      batch.mesh.instanceColor.needsUpdate = true; batch.mesh.instanceMatrix.needsUpdate = true;
+      if (species === 'cherry') { batch.material.map = season === 'spring' ? cherryBlossomTexture : cherryLeafTexture; batch.material.needsUpdate = true; }
     }
   }
   setSeason('summer');
-  return { setSeason };
+  function inspectSeason() {
+    const families = {};
+    const instanceColor = new THREE.Color();
+    const instanceMatrix = new THREE.Matrix4();
+    for (const batch of foliageBatches.values()) {
+      for (let instanceIndex = 0; instanceIndex < batch.instances.length; instanceIndex++) {
+        const family = batch.instances[instanceIndex].seasonalFamily;
+        if (!families[family]) families[family] = { color: [0, 0, 0], count: 0, visibleCount: 0 };
+        const summary = families[family];
+        batch.mesh.getColorAt(instanceIndex, instanceColor);
+        summary.color[0] += instanceColor.r; summary.color[1] += instanceColor.g; summary.color[2] += instanceColor.b; summary.count++;
+        batch.mesh.getMatrixAt(instanceIndex, instanceMatrix);
+        if (instanceMatrix.elements[0] !== 0 || instanceMatrix.elements[1] !== 0 || instanceMatrix.elements[2] !== 0) summary.visibleCount++;
+      }
+    }
+    for (const summary of Object.values(families)) summary.color = summary.color.map(function averageColor(channel) { return channel / summary.count; });
+    return families;
+  }
+  return { setSeason, inspectSeason };
 }

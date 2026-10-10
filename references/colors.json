@@ -1,0 +1,747 @@
+{
+  "spring.jpg": {
+    "lower_fresh_foliage": {
+      "crop": [
+        90,
+        270,
+        350,
+        400
+      ],
+      "median": [
+        88,
+        80,
+        47
+      ],
+      "clusters": [
+        {
+          "hex": "#4f4628",
+          "fraction": 0.295
+        },
+        {
+          "hex": "#625937",
+          "fraction": 0.227
+        },
+        {
+          "hex": "#342d15",
+          "fraction": 0.204
+        },
+        {
+          "hex": "#756b44",
+          "fraction": 0.188
+        },
+        {
+          "hex": "#98906d",
+          "fraction": 0.086
+        }
+      ]
+    },
+    "upper_evergreen": {
+      "crop": [
+        285,
+        190,
+        340,
+        244
+      ],
+      "median": [
+        42,
+        46,
+        29
+      ],
+      "clusters": [
+        {
+          "hex": "#212417",
+          "fraction": 0.289
+        },
+        {
+          "hex": "#0e110a",
+          "fraction": 0.233
+        },
+        {
+          "hex": "#373a26",
+          "fraction": 0.226
+        },
+        {
+          "hex": "#575b43",
+          "fraction": 0.15
+        },
+        {
+          "hex": "#aeb6ab",
+          "fraction": 0.103
+        }
+      ]
+    },
+    "cherry_blossom": {
+      "crop": [
+        455,
+        350,
+        550,
+        406
+      ],
+      "median": [
+        165,
+        142,
+        144
+      ],
+      "clusters": [
+        {
+          "hex": "#967f81",
+          "fraction": 0.286
+        },
+        {
+          "hex": "#b39b9e",
+          "fraction": 0.227
+        },
+        {
+          "hex": "#634e4f",
+          "fraction": 0.208
+        },
+        {
+          "hex": "#c9b2b5",
+          "fraction": 0.166
+        },
+        {
+          "hex": "#dfc9cb",
+          "fraction": 0.114
+        }
+      ]
+    },
+    "middle_new_growth": {
+      "crop": [
+        675,
+        355,
+        780,
+        410
+      ],
+      "median": [
+        105,
+        93,
+        67
+      ],
+      "clusters": [
+        {
+          "hex": "#5e5339",
+          "fraction": 0.274
+        },
+        {
+          "hex": "#736549",
+          "fraction": 0.231
+        },
+        {
+          "hex": "#40371f",
+          "fraction": 0.205
+        },
+        {
+          "hex": "#827253",
+          "fraction": 0.202
+        },
+        {
+          "hex": "#958566",
+          "fraction": 0.087
+        }
+      ]
+    }
+  },
+  "winter.jpg": {
+    "upper_evergreen": {
+      "crop": [
+        1100,
+        40,
+        1400,
+        280
+      ],
+      "median": [
+        28,
+        30,
+        21
+      ],
+      "clusters": [
+        {
+          "hex": "#181911",
+          "fraction": 0.288
+        },
+        {
+          "hex": "#212219",
+          "fraction": 0.231
+        },
+        {
+          "hex": "#2a2c20",
+          "fraction": 0.214
+        },
+        {
+          "hex": "#0c0e08",
+          "fraction": 0.205
+        },
+        {
+          "hex": "#5e635b",
+          "fraction": 0.063
+        }
+      ]
+    },
+    "bronzed_conifer": {
+      "crop": [
+        1600,
+        95,
+        1780,
+        285
+      ],
+      "median": [
+        45,
+        37,
+        30
+      ],
+      "clusters": [
+        {
+          "hex": "#272019",
+          "fraction": 0.262
+        },
+        {
+          "hex": "#3c3127",
+          "fraction": 0.239
+        },
+        {
+          "hex": "#322920",
+          "fraction": 0.231
+        },
+        {
+          "hex": "#19140d",
+          "fraction": 0.206
+        },
+        {
+          "hex": "#544c44",
+          "fraction": 0.062
+        }
+      ]
+    },
+    "lower_bare_twigs": {
+      "crop": [
+        320,
+        100,
+        660,
+        265
+      ],
+      "median": [
+        39,
+        35,
+        27
+      ],
+      "clusters": [
+        {
+          "hex": "#1e1b12",
+          "fraction": 0.254
+        },
+        {
+          "hex": "#0e0d06",
+          "fraction": 0.244
+        },
+        {
+          "hex": "#302c23",
+          "fraction": 0.226
+        },
+        {
+          "hex": "#433e35",
+          "fraction": 0.212
+        },
+        {
+          "hex": "#7e7e7b",
+          "fraction": 0.064
+        }
+      ]
+    },
+    "moss": {
+      "crop": [
+        1550,
+        730,
+        1690,
+        750
+      ],
+      "median": [
+        71,
+        56,
+        26
+      ],
+      "clusters": [
+        {
+          "hex": "#423317",
+          "fraction": 0.281
+        },
+        {
+          "hex": "#4b3c1d",
+          "fraction": 0.241
+        },
+        {
+          "hex": "#36270e",
+          "fraction": 0.203
+        },
+        {
+          "hex": "#534527",
+          "fraction": 0.158
+        },
+        {
+          "hex": "#645a40",
+          "fraction": 0.117
+        }
+      ]
+    }
+  },
+  "summer.jpg": {
+    "evergreen": {
+      "crop": [
+        255,
+        115,
+        600,
+        330
+      ],
+      "median": [
+        27,
+        78,
+        43
+      ],
+      "clusters": [
+        {
+          "hex": "#163f22",
+          "fraction": 0.267
+        },
+        {
+          "hex": "#07210f",
+          "fraction": 0.249
+        },
+        {
+          "hex": "#2b5f3c",
+          "fraction": 0.232
+        },
+        {
+          "hex": "#448a6d",
+          "fraction": 0.131
+        },
+        {
+          "hex": "#68bfc1",
+          "fraction": 0.121
+        }
+      ]
+    },
+    "maple": {
+      "crop": [
+        900,
+        330,
+        1410,
+        550
+      ],
+      "median": [
+        18,
+        87,
+        22
+      ],
+      "clusters": [
+        {
+          "hex": "#0b4b0e",
+          "fraction": 0.303
+        },
+        {
+          "hex": "#052b06",
+          "fraction": 0.217
+        },
+        {
+          "hex": "#1c6522",
+          "fraction": 0.207
+        },
+        {
+          "hex": "#3b853e",
+          "fraction": 0.168
+        },
+        {
+          "hex": "#75b56b",
+          "fraction": 0.104
+        }
+      ]
+    },
+    "gravel": {
+      "crop": [
+        400,
+        850,
+        650,
+        1030
+      ],
+      "median": [
+        197,
+        202,
+        199
+      ],
+      "clusters": [
+        {
+          "hex": "#b9bebc",
+          "fraction": 0.28
+        },
+        {
+          "hex": "#ced3d1",
+          "fraction": 0.232
+        },
+        {
+          "hex": "#959a97",
+          "fraction": 0.206
+        },
+        {
+          "hex": "#dfe4e1",
+          "fraction": 0.166
+        },
+        {
+          "hex": "#f0f4f2",
+          "fraction": 0.116
+        }
+      ]
+    },
+    "wall": {
+      "crop": [
+        890,
+        655,
+        1150,
+        715
+      ],
+      "median": [
+        156,
+        126,
+        93
+      ],
+      "clusters": [
+        {
+          "hex": "#8b7156",
+          "fraction": 0.261
+        },
+        {
+          "hex": "#a88662",
+          "fraction": 0.218
+        },
+        {
+          "hex": "#65513f",
+          "fraction": 0.214
+        },
+        {
+          "hex": "#b59168",
+          "fraction": 0.183
+        },
+        {
+          "hex": "#bf9b70",
+          "fraction": 0.124
+        }
+      ]
+    },
+    "stone": {
+      "crop": [
+        735,
+        745,
+        781,
+        780
+      ],
+      "median": [
+        85,
+        84,
+        78
+      ],
+      "clusters": [
+        {
+          "hex": "#4e4c47",
+          "fraction": 0.283
+        },
+        {
+          "hex": "#5c5b56",
+          "fraction": 0.246
+        },
+        {
+          "hex": "#3b3933",
+          "fraction": 0.211
+        },
+        {
+          "hex": "#6e6e69",
+          "fraction": 0.152
+        },
+        {
+          "hex": "#8e908f",
+          "fraction": 0.108
+        }
+      ]
+    }
+  },
+  "autumn-jr.jpg": {
+    "evergreen": {
+      "crop": [
+        25,
+        25,
+        115,
+        98
+      ],
+      "median": [
+        58,
+        67,
+        46
+      ],
+      "clusters": [
+        {
+          "hex": "#343a29",
+          "fraction": 0.276
+        },
+        {
+          "hex": "#3e4c32",
+          "fraction": 0.226
+        },
+        {
+          "hex": "#26251f",
+          "fraction": 0.218
+        },
+        {
+          "hex": "#4e543a",
+          "fraction": 0.176
+        },
+        {
+          "hex": "#5b6644",
+          "fraction": 0.104
+        }
+      ]
+    },
+    "red_maple": {
+      "crop": [
+        325,
+        185,
+        545,
+        244
+      ],
+      "median": [
+        160,
+        64,
+        49
+      ],
+      "clusters": [
+        {
+          "hex": "#5f3423",
+          "fraction": 0.276
+        },
+        {
+          "hex": "#bc3629",
+          "fraction": 0.272
+        },
+        {
+          "hex": "#9f4533",
+          "fraction": 0.224
+        },
+        {
+          "hex": "#b25e4c",
+          "fraction": 0.129
+        },
+        {
+          "hex": "#a74e3c",
+          "fraction": 0.099
+        }
+      ]
+    },
+    "gold_maple": {
+      "crop": [
+        10,
+        124,
+        150,
+        211
+      ],
+      "median": [
+        200,
+        121,
+        8
+      ],
+      "clusters": [
+        {
+          "hex": "#b7690e",
+          "fraction": 0.249
+        },
+        {
+          "hex": "#6d461c",
+          "fraction": 0.23
+        },
+        {
+          "hex": "#d5830c",
+          "fraction": 0.225
+        },
+        {
+          "hex": "#e5920a",
+          "fraction": 0.164
+        },
+        {
+          "hex": "#ec9c0b",
+          "fraction": 0.133
+        }
+      ]
+    },
+    "gravel": {
+      "crop": [
+        280,
+        365,
+        430,
+        420
+      ],
+      "median": [
+        185,
+        176,
+        166
+      ],
+      "clusters": [
+        {
+          "hex": "#b7ada4",
+          "fraction": 0.315
+        },
+        {
+          "hex": "#bbb2a8",
+          "fraction": 0.196
+        },
+        {
+          "hex": "#aea49b",
+          "fraction": 0.185
+        },
+        {
+          "hex": "#bdb4aa",
+          "fraction": 0.155
+        },
+        {
+          "hex": "#c1b8ae",
+          "fraction": 0.149
+        }
+      ]
+    },
+    "wall": {
+      "crop": [
+        415,
+        292,
+        520,
+        317
+      ],
+      "median": [
+        139,
+        112,
+        78
+      ],
+      "clusters": [
+        {
+          "hex": "#786147",
+          "fraction": 0.277
+        },
+        {
+          "hex": "#55473a",
+          "fraction": 0.241
+        },
+        {
+          "hex": "#a6835f",
+          "fraction": 0.204
+        },
+        {
+          "hex": "#bdb4a9",
+          "fraction": 0.141
+        },
+        {
+          "hex": "#b6aea6",
+          "fraction": 0.136
+        }
+      ]
+    }
+  },
+  "autumn-kyoto.jpg": {
+    "red_maple": {
+      "crop": [
+        455,
+        110,
+        542,
+        180
+      ],
+      "median": [
+        129,
+        42,
+        46
+      ],
+      "clusters": [
+        {
+          "hex": "#833534",
+          "fraction": 0.256
+        },
+        {
+          "hex": "#66181b",
+          "fraction": 0.198
+        },
+        {
+          "hex": "#b47c60",
+          "fraction": 0.195
+        },
+        {
+          "hex": "#7d1a26",
+          "fraction": 0.183
+        },
+        {
+          "hex": "#82242d",
+          "fraction": 0.167
+        }
+      ]
+    },
+    "orange_maple": {
+      "crop": [
+        45,
+        48,
+        160,
+        110
+      ],
+      "median": [
+        142,
+        77,
+        27
+      ],
+      "clusters": [
+        {
+          "hex": "#884415",
+          "fraction": 0.236
+        },
+        {
+          "hex": "#503109",
+          "fraction": 0.233
+        },
+        {
+          "hex": "#ab5321",
+          "fraction": 0.207
+        },
+        {
+          "hex": "#8d5623",
+          "fraction": 0.194
+        },
+        {
+          "hex": "#b0612d",
+          "fraction": 0.129
+        }
+      ]
+    },
+    "gravel_shade": {
+      "crop": [
+        335,
+        345,
+        540,
+        425
+      ],
+      "median": [
+        143,
+        153,
+        158
+      ],
+      "clusters": [
+        {
+          "hex": "#899398",
+          "fraction": 0.31
+        },
+        {
+          "hex": "#939da2",
+          "fraction": 0.23
+        },
+        {
+          "hex": "#99a4a9",
+          "fraction": 0.174
+        },
+        {
+          "hex": "#757e84",
+          "fraction": 0.161
+        },
+        {
+          "hex": "#a2acb1",
+          "fraction": 0.125
+        }
+      ]
+    }
+  }
+}

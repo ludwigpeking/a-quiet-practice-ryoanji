@@ -6,6 +6,7 @@ import { SSAOPass } from 'three/addons/postprocessing/SSAOPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { createGardenScene, createStone, originalStones, seededRandom } from './scene.js';
 import { createInitialHeights, applyBrush, sampleHeight, clamp, COLUMN_COUNT, ROW_COUNT, RAKE_TOOTH_SPACING, RAKE_HALF_DEPTH } from './terrain.js';
+import { smoothRakeHeading } from './rake-heading.js';
 import './style.css';
 import './minimal.css';
 
@@ -23,8 +24,8 @@ renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 renderer.shadowMap.autoUpdate = false;
 renderer.shadowMap.needsUpdate = true;
-renderer.toneMapping = THREE.ACESFilmicToneMapping;
-renderer.toneMappingExposure = 1.12;
+renderer.toneMapping = THREE.LinearToneMapping;
+renderer.toneMappingExposure = 1;
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 
 const { scene, sand, sunlight, hemisphere, fillLight, rockMaterial, mossMaterial, temple, forest } = createGardenScene();
@@ -73,6 +74,7 @@ let lastStrokePoint = null;
 let lastRakeHoverPoint = null;
 let rakeStrokeHasMoved = false;
 let rakeReferenceHeights = null;
+let rakeHeadingAngle = 0;
 let lastPointerPosition = new THREE.Vector2();
 const pointerPosition = new THREE.Vector2(2, 2);
 const raycaster = new THREE.Raycaster();
@@ -181,13 +183,15 @@ function setLighting(lighting) {
   renderRequested = true; renderer.shadowMap.needsUpdate = true;
   chosenLighting = lighting;
   const configurations = {
-    morning: { sun: '#fff1d2', sky: '#d4ded8', intensity: 2.1, ambient: 1.8, position: [-13, 12, -2], exposure: 1.12, label: 'EARLY MORNING' },
-    afternoon: { sun: '#ffe9c8', sky: '#c7cfbd', intensity: 2.6, ambient: 1.6, position: [-9, 15, 8], exposure: 1.12, label: 'LATE AFTERNOON' },
-    overcast: { sun: '#e0e7e7', sky: '#c2ceca', intensity: .8, ambient: 2.2, position: [-5, 20, 2], exposure: 1.08, label: 'UNDER SOFT CLOUDS' },
+    morning: { sun: '#fff1df', sky: '#cbd7e2', intensity: 2.0, ambient: 2.0, position: [-13, 12, -2], exposure: 1, label: 'EARLY MORNING' },
+    afternoon: { sun: '#fff2e3', sky: '#c3d1de', intensity: 2.3, ambient: 2.0, position: [-9, 15, 8], exposure: 1, label: 'LATE AFTERNOON' },
+    overcast: { sun: '#f5f7fa', sky: '#c8d0d7', intensity: .65, ambient: 2.35, position: [-5, 20, 2], exposure: 1, label: 'UNDER SOFT CLOUDS' },
   };
   const configuration = configurations[lighting];
   sunlight.color.set(configuration.sun); sunlight.intensity = configuration.intensity; sunlight.position.fromArray(configuration.position);
   hemisphere.intensity = configuration.ambient; fillLight.intensity = lighting === 'overcast' ? 1 : .65;
+  hemisphere.color.set(lighting === 'overcast' ? '#ecf0f5' : '#e8eef6');
+  hemisphere.groundColor.set('#858482');
   scene.background.set(configuration.sky); scene.fog.color.set(configuration.sky); renderer.toneMappingExposure = configuration.exposure;
   document.querySelector('#light-label').textContent = configuration.label;
   document.querySelectorAll('[data-light]').forEach(function markLighting(button) { button.classList.toggle('active', button.dataset.light === lighting); button.setAttribute('aria-pressed', String(button.dataset.light === lighting)); });
@@ -225,6 +229,8 @@ function setTool(tool) {
 function setSeason(season) {
   chosenSeason = ['spring', 'summer', 'autumn', 'winter'].includes(season) ? season : 'summer';
   forest.setSeason(chosenSeason);
+  const mossTints = { spring: '#d9d4a2', summer: '#ffffff', autumn: '#d0b179', winter: '#a58a62' };
+  mossMaterial.color.set(mossTints[chosenSeason]);
   document.querySelector('#season').value = chosenSeason;
   renderer.shadowMap.needsUpdate = true; renderRequested = true;
 }
@@ -296,7 +302,7 @@ function stampStroke(point, elapsedSeconds) {
   const movementDistance = Math.hypot(movementX, movementZ);
   if (activeTool === 'rake') {
     if (movementDistance < .002) return;
-    const targetAngle = Math.atan2(movementZ, movementX);
+    const targetAngle = rakeHeadingAngle;
     const previousAngle = rakeStrokeHasMoved ? Math.atan2(strokeDirection.y, strokeDirection.x) : targetAngle;
     // The bar is symmetric: choose the shortest rotation instead of flipping on a reversal.
     let turnAngle = Math.atan2(Math.sin(targetAngle - previousAngle), Math.cos(targetAngle - previousAngle));
@@ -346,16 +352,18 @@ canvas.addEventListener('pointerdown', function beginGesture(event) {
 function clampStonePosition(worldX, worldZ, size) { return { x: clamp(worldX, -11.7 + size, 11.7 - size), z: clamp(worldZ, -5.45 + size * .8, 5.45 - size * .8) }; }
 
 canvas.addEventListener('pointermove', function movePointer(event) {
+  const travelPixels = Math.hypot(event.clientX - lastPointerPosition.x, event.clientY - lastPointerPosition.y);
   updatePointer(event); pointerIsInside = true;
   if (activeTool === 'rake') {
     const point = terrainIntersection();
     if (point) {
-      if (isSculpting) stampStroke(point, 0);
-      else if (lastRakeHoverPoint && event.buttons === 0) {
+      if (lastRakeHoverPoint && (isSculpting || event.buttons === 0)) {
         const movementX = point.x - lastRakeHoverPoint.x;
         const movementZ = point.z - lastRakeHoverPoint.z;
-        if (Math.hypot(movementX, movementZ) > .002) strokeDirection.set(movementX, movementZ).normalize();
+        if (Math.hypot(movementX, movementZ) > .002) rakeHeadingAngle = smoothRakeHeading(rakeHeadingAngle, Math.atan2(movementZ, movementX), travelPixels);
       }
+      if (isSculpting) stampStroke(point, 0);
+      else strokeDirection.set(Math.cos(rakeHeadingAngle), Math.sin(rakeHeadingAngle));
       lastRakeHoverPoint = point.clone();
     } else { lastRakeHoverPoint = null; lastStrokePoint = null; rakeStrokeHasMoved = false; }
   }
@@ -559,5 +567,5 @@ animate();
 // application entry-point exports are removed by the production build.
 export function inspectGarden() {
   const point = terrainIntersection();
-  return { cameraPosition: camera.position.toArray(), groundPoint: point ? point.toArray() : null, isElevatedView, stoneCount: stoneGroup.children.length, minimumPolarAngle: controls.minPolarAngle, rakeBarVisible: rakeBar.visible, brushRingVisible: brushRing.visible, rakeDirection: strokeDirection.toArray(), brushDiameter, chosenSeason, terrainHeightEnergy: heights.reduce(function sumSquaredHeight(total, height) { return total + height * height; }, 0) };
+  return { cameraPosition: camera.position.toArray(), groundPoint: point ? point.toArray() : null, isElevatedView, stoneCount: stoneGroup.children.length, minimumPolarAngle: controls.minPolarAngle, rakeBarVisible: rakeBar.visible, brushRingVisible: brushRing.visible, rakeDirection: strokeDirection.toArray(), brushDiameter, chosenSeason, forest: forest.inspectSeason(), terrainHeightEnergy: heights.reduce(function sumSquaredHeight(total, height) { return total + height * height; }, 0) };
 }

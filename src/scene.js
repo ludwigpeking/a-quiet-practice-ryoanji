@@ -14,7 +14,7 @@ function createSurfaceTexture(kind, seed) {
   const canvas = document.createElement('canvas');
   canvas.width = canvas.height = 1024;
   const context = canvas.getContext('2d');
-  const baseColors = { sand: '#dfddd0', wood: '#51402c', wall: '#aa9471', rock: '#777974', moss: '#667443' };
+  const baseColors = { sand: '#c5c7c7', wood: '#59483e', wall: '#b79a7b', rock: '#6f7174', moss: '#596633' };
   context.fillStyle = baseColors[kind];
   context.fillRect(0, 0, 1024, 1024);
   const imageData = context.getImageData(0, 0, 1024, 1024);
@@ -39,7 +39,7 @@ function createSurfaceTexture(kind, seed) {
     const markX = randomNumber() * 1024;
     const markY = randomNumber() * 1024;
     const markSize = randomNumber() * (kind === 'wall' ? 10 : 2.5) + .4;
-    context.fillStyle = randomNumber() > .5 ? 'rgba(255,248,219,.10)' : 'rgba(20,30,19,.12)';
+    context.fillStyle = randomNumber() > .5 ? 'rgba(250,250,250,.10)' : 'rgba(24,25,26,.12)';
     if (kind === 'wood') context.fillRect(markX, markY, .5 + randomNumber(), randomNumber() * 180 + 20);
     else { context.beginPath(); context.ellipse(markX, markY, markSize, markSize * .6, randomNumber() * Math.PI, 0, Math.PI * 2); context.fill(); }
   }
@@ -93,7 +93,7 @@ function createLeafTexture(species = 'broadleaf') {
   const context = canvas.getContext('2d');
   const randomNumber = seededRandom(78);
   if (species === 'canopy') { context.fillStyle = '#777777'; context.fillRect(0, 0, 128, 128); }
-  context.strokeStyle = '#819174'; context.lineWidth = 1.7;
+  context.strokeStyle = '#929292'; context.lineWidth = 1.7;
   context.beginPath(); context.moveTo(64, 124); context.bezierCurveTo(49, 76, 84, 47, 63, 7); context.stroke();
   for (let leafIndex = 0; leafIndex < (species === 'canopy' ? 380 : 27); leafIndex++) {
     const centerX = species === 'canopy' ? randomNumber() * 128 : 20 + randomNumber() * 88;
@@ -104,10 +104,15 @@ function createLeafTexture(species = 'broadleaf') {
     gradient.addColorStop(0, '#aaaaaa'); gradient.addColorStop(.5, '#dedede'); gradient.addColorStop(1, '#929292');
     context.fillStyle = gradient;
     if (species === 'conifer') {
-      context.strokeStyle = '#becbab'; context.lineWidth = 1.4;
+      context.strokeStyle = '#d0d0d0'; context.lineWidth = 1.4;
       for (let needleIndex = 0; needleIndex < 8; needleIndex++) {
         const needlePosition = (needleIndex / 7 - .5) * leafLength * 2;
         context.beginPath(); context.moveTo(needlePosition, 0); context.lineTo(needlePosition + leafLength * .45, -leafLength * .55); context.moveTo(needlePosition, 0); context.lineTo(needlePosition + leafLength * .45, leafLength * .55); context.stroke();
+      }
+    } else if (species === 'cherry') {
+      for (let petalIndex = 0; petalIndex < 5; petalIndex++) {
+        const petalAngle = petalIndex * Math.PI * 2 / 5;
+        context.beginPath(); context.ellipse(Math.cos(petalAngle) * leafLength * .37, Math.sin(petalAngle) * leafLength * .37, leafLength * .37, leafLength * .24, petalAngle, 0, Math.PI * 2); context.fill();
       }
     } else if (species === 'maple') {
       context.beginPath();
@@ -146,15 +151,15 @@ export const originalStones = [
 
 export function createGardenScene() {
   const scene = new THREE.Scene();
-  scene.background = new THREE.Color('#c7cfbd');
-  scene.fog = new THREE.Fog('#c7cfbd', 34, 85);
-  const hemisphere = new THREE.HemisphereLight('#e4eadb', '#8b765a', 1.6); scene.add(hemisphere);
-  const sunlight = new THREE.DirectionalLight('#ffe9c8', 2.6);
+  scene.background = new THREE.Color('#c3d1de');
+  scene.fog = new THREE.Fog('#c3d1de', 60, 150);
+  const hemisphere = new THREE.HemisphereLight('#e8eef6', '#858482', 2.0); scene.add(hemisphere);
+  const sunlight = new THREE.DirectionalLight('#fff2e3', 2.3);
   sunlight.position.set(-9, 15, 8); sunlight.castShadow = true;
   sunlight.shadow.mapSize.set(2048, 2048); sunlight.shadow.camera.left = -18; sunlight.shadow.camera.right = 18; sunlight.shadow.camera.top = 16; sunlight.shadow.camera.bottom = -16;
   sunlight.shadow.camera.near = .1; sunlight.shadow.camera.far = 65; sunlight.shadow.normalBias = .035; sunlight.shadow.bias = -.00015; sunlight.shadow.radius = 4;
   scene.add(sunlight);
-  const fillLight = new THREE.DirectionalLight('#bfd1ce', .65); fillLight.position.set(12, 8, -8); scene.add(fillLight);
+  const fillLight = new THREE.DirectionalLight('#dce6f2', .65); fillLight.position.set(12, 8, 10); scene.add(fillLight);
   const woodMaterial = createMaterial('wood', 45, 1, 3);
   const wallMaterial = createMaterial('wall', 52, 5, 1);
   const roofMaterial = new THREE.MeshStandardMaterial({ color: '#4d5149', roughness: .92 });
