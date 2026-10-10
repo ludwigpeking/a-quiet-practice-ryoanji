@@ -15,12 +15,14 @@ export function createInitialHeights(stoneDefinitions) {
       const worldX = columnIndex * CELL_WIDTH - GARDEN_WIDTH / 2;
       let grooveHeight = Math.sin(worldZ * 28) * .026;
       let nearestDistance = Infinity;
+      let nearestStoneSize = 1;
       for (const stone of stoneDefinitions) {
         const distance = Math.hypot((worldX - stone.positionX) * .85, worldZ - stone.positionZ);
-        if (distance < nearestDistance) nearestDistance = distance;
+        if (distance < nearestDistance) { nearestDistance = distance; nearestStoneSize = stone.size ?? 1; }
       }
-      if (nearestDistance < 2.1) {
-        const blendFactor = clamp((2.1 - nearestDistance) / .65, 0, 1);
+      const ringRadius = 1.1 + nearestStoneSize * .6;
+      if (nearestDistance < ringRadius) {
+        const blendFactor = clamp((ringRadius - nearestDistance) / .45, 0, 1);
         const smoothBlend = blendFactor * blendFactor * (3 - 2 * blendFactor);
         grooveHeight = grooveHeight * (1 - smoothBlend) + Math.sin(nearestDistance * 28) * .026 * smoothBlend;
       }

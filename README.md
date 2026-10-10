@@ -2,6 +2,8 @@
 
 A Three.js garden-making experience inspired by Ryōan-ji, Kyoto. The courtyard is an artistic interpretation rather than a measured reconstruction.
 
+The four stone forms (upright, reclining, mountain, split) are freely designed procedural silhouettes, not a historical Japanese stone taxonomy or scans of Ryōan-ji's actual stones. Their material uses continuous three-dimensional mineral grain, fine flecks, veins, pores, and weathered crevices, with an individual seed for every stone.
+
 ## Run
 
 ```sh

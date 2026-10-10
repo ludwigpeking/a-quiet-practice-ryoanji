@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { mergeGeometries, mergeVertices } from 'three/addons/utils/BufferGeometryUtils.js';
 import { createForest } from './forest.js';
+import { enrichStoneMaterial } from './stone-material.js';
 import { GARDEN_WIDTH, GARDEN_DEPTH, COLUMN_COUNT, ROW_COUNT } from './terrain.js';
 
 export function seededRandom(seed) {
@@ -126,21 +127,21 @@ function createLeafTexture(species = 'broadleaf') {
 }
 
 export const originalStones = [
-  { positionX: -8.3, positionZ: .8, shape: 'mountain', size: 1.3, rotation: .2, seed: 21 },
-  { positionX: -9.45, positionZ: 1.1, shape: 'reclining', size: .68, rotation: -.5, seed: 22 },
-  { positionX: -7.2, positionZ: 1.4, shape: 'spire', size: .63, rotation: .8, seed: 23 },
-  { positionX: -8.5, positionZ: 2.0, shape: 'reclining', size: .48, rotation: 1.1, seed: 24 },
-  { positionX: -9.4, positionZ: .05, shape: 'mountain', size: .48, rotation: 0, seed: 25 },
-  { positionX: -4.1, positionZ: -2.4, shape: 'spire', size: .95, rotation: -.4, seed: 31 },
-  { positionX: -3.05, positionZ: -2.15, shape: 'reclining', size: .61, rotation: .5, seed: 32 },
-  { positionX: .1, positionZ: .0, shape: 'mountain', size: .91, rotation: 1.1, seed: 41 },
-  { positionX: -1.05, positionZ: .5, shape: 'reclining', size: .71, rotation: .2, seed: 42 },
-  { positionX: .9, positionZ: .55, shape: 'spire', size: .52, rotation: -.8, seed: 43 },
-  { positionX: 4.1, positionZ: -2.8, shape: 'reclining', size: .91, rotation: -.3, seed: 51 },
-  { positionX: 5.05, positionZ: -2.9, shape: 'spire', size: .68, rotation: .8, seed: 52 },
-  { positionX: 7.25, positionZ: 1.6, shape: 'split', size: 1.02, rotation: .5, seed: 61 },
-  { positionX: 8.2, positionZ: 2.2, shape: 'reclining', size: .65, rotation: -.4, seed: 62 },
-  { positionX: 6.25, positionZ: 2.1, shape: 'mountain', size: .48, rotation: 0, seed: 63 },
+  { positionX: -8.2, positionZ: .1, shape: 'mountain', size: .91, rotation: .2, seed: 21 },
+  { positionX: -9.02, positionZ: .28, shape: 'reclining', size: .48, rotation: -.5, seed: 22 },
+  { positionX: -7.48, positionZ: .46, shape: 'spire', size: .43, rotation: .8, seed: 23 },
+  { positionX: -8.35, positionZ: .84, shape: 'reclining', size: .34, rotation: 1.1, seed: 24 },
+  { positionX: -8.95, positionZ: -.38, shape: 'mountain', size: .34, rotation: 0, seed: 25 },
+  { positionX: -4.35, positionZ: -3.15, shape: 'spire', size: .72, rotation: -.4, seed: 31 },
+  { positionX: -3.62, positionZ: -2.98, shape: 'reclining', size: .43, rotation: .5, seed: 32 },
+  { positionX: .1, positionZ: -.85, shape: 'mountain', size: .63, rotation: 1.1, seed: 41 },
+  { positionX: -.67, positionZ: -.51, shape: 'reclining', size: .49, rotation: .2, seed: 42 },
+  { positionX: .65, positionZ: -.48, shape: 'spire', size: .36, rotation: -.8, seed: 43 },
+  { positionX: 4.35, positionZ: -3.5, shape: 'reclining', size: .65, rotation: -.3, seed: 51 },
+  { positionX: 5.03, positionZ: -3.6, shape: 'spire', size: .47, rotation: .8, seed: 52 },
+  { positionX: 8.05, positionZ: .15, shape: 'split', size: .72, rotation: .5, seed: 61 },
+  { positionX: 8.71, positionZ: .57, shape: 'reclining', size: .46, rotation: -.4, seed: 62 },
+  { positionX: 7.36, positionZ: .52, shape: 'mountain', size: .34, rotation: 0, seed: 63 },
 ];
 
 export function createGardenScene() {
@@ -201,12 +202,13 @@ export function createGardenScene() {
   }
   box(temple, 33, .19, .22, 0, .12, 6.49, woodMaterial);
   box(temple, 33, .15, .65, 0, -.15, 6.15, woodMaterial);
+  const columnLinePositionZ = 7.65;
   for (const postX of [-13.3, -5.6, 5.6, 13.3]) {
-    box(temple, .23, 4.2, .29, postX, 2.15, 6.1, woodMaterial);
-    box(temple, .38, .15, .4, postX, .32, 6.1, woodMaterial);
+    box(temple, .23, 4.2, .29, postX, 2.15, columnLinePositionZ, woodMaterial);
+    box(temple, .38, .15, .4, postX, .32, columnLinePositionZ, woodMaterial);
   }
-  box(temple, 33, .32, .45, 0, 4.13, 6.1, woodMaterial);
-  box(temple, 33, .2, 6.7, 0, 4.45, 9.3, woodMaterial);
+  box(temple, 33, .32, .45, 0, 4.13, columnLinePositionZ, woodMaterial);
+  box(temple, 33, .2, 7.9, 0, 4.45, 9.3, woodMaterial);
   for (let rafterIndex = 0; rafterIndex < 57; rafterIndex++) box(temple, .11, .22, 7.5, -16 + rafterIndex * .58, 4.25, 9.05, woodMaterial);
   box(temple, 33, .17, .3, 0, 4.31, 5.37, woodMaterial);
   const screenMaterial = new THREE.MeshStandardMaterial({ color: '#c5baa0', roughness: 1 });
@@ -227,7 +229,7 @@ export function createGardenScene() {
     transform.scale.set(.04 + randomNumber() * .065, .03 + randomNumber() * .04, .04 + randomNumber() * .065); transform.rotation.set(randomNumber() * 3, randomNumber() * 3, 0); transform.updateMatrix(); pebbles.setMatrixAt(pebbleIndex, transform.matrix);
   }
   scene.add(pebbles);
-  const rockMaterial = createMaterial('rock', 62, 1, 1); rockMaterial.vertexColors = true; rockMaterial.bumpScale = .16;
+  const rockMaterial = enrichStoneMaterial(createMaterial('rock', 62, 1, 1)); rockMaterial.vertexColors = true; rockMaterial.bumpScale = .035;
   const mossMaterial = createMaterial('moss', 64, 3, 3);
   mergeStaticMeshes(scene, sand);
   scene.add(temple);
@@ -259,16 +261,19 @@ export function createStone(definition, rockMaterial, mossMaterial) {
     color.setRGB(shade * .97, shade + mossAmount, shade * .99); color.toArray(colors, vertexIndex * 3);
   }
   geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3)); geometry.deleteAttribute('normal'); geometry = mergeVertices(geometry); geometry.computeVertexNormals();
+  geometry.setAttribute('stoneSeed', new THREE.BufferAttribute(new Float32Array(geometry.attributes.position.count).fill(noiseOffset), 1));
   const stone = new THREE.Mesh(geometry, rockMaterial); stone.castShadow = true; stone.receiveShadow = true; group.add(stone);
-  const mossGeometry = new THREE.SphereGeometry(1, 48, 12);
+  const mossGeometry = new THREE.SphereGeometry(1, 64, 24);
   const mossPositions = mossGeometry.attributes.position;
   for (let vertexIndex = 0; vertexIndex < mossPositions.count; vertexIndex++) {
-    const sourceX = mossPositions.getX(vertexIndex), sourceZ = mossPositions.getZ(vertexIndex);
-    const edgeDistortion = 1 + Math.sin(sourceX * 13 + sourceZ * 9 + noiseOffset) * .08 + Math.cos(sourceZ * 17) * .04;
-    mossPositions.setXYZ(vertexIndex, sourceX * shapeScale[0] * 1.44 * edgeDistortion, mossPositions.getY(vertexIndex) * .095 - .008, sourceZ * shapeScale[2] * 1.53 * edgeDistortion);
+    const sourceX = mossPositions.getX(vertexIndex), sourceY = mossPositions.getY(vertexIndex), sourceZ = mossPositions.getZ(vertexIndex);
+    const edgeDistortion = 1 + Math.sin(sourceX * 7 + sourceZ * 5 + noiseOffset) * .07 + Math.cos(sourceZ * 13 + noiseOffset) * .025;
+    const cushionVariation = 1 + Math.sin(sourceX * 8 + noiseOffset) * Math.cos(sourceZ * 7) * .16;
+    const moundHeight = sourceY > 0 ? .24 * Math.pow(sourceY, 1.3) * cushionVariation : sourceY * .04;
+    mossPositions.setXYZ(vertexIndex, sourceX * shapeScale[0] * 1.4 * edgeDistortion, moundHeight - .008, sourceZ * shapeScale[2] * 1.46 * edgeDistortion);
   }
   mossGeometry.computeVertexNormals();
-  const moss = new THREE.Mesh(mossGeometry, mossMaterial); moss.receiveShadow = true; group.add(moss);
+  const moss = new THREE.Mesh(mossGeometry, mossMaterial); moss.castShadow = true; moss.receiveShadow = true; group.add(moss);
   group.scale.setScalar(definition.size); group.rotation.y = definition.rotation;
   group.position.set(definition.positionX, 0, definition.positionZ);
   return group;
