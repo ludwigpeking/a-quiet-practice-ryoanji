@@ -69,6 +69,19 @@ function box(parent, width, height, depth, positionX, positionY, positionZ, mate
   mesh.position.set(positionX, positionY, positionZ); mesh.castShadow = true; mesh.receiveShadow = true; parent.add(mesh); return mesh;
 }
 
+function wallRoofSupport(parent, profilePoints, length, positionX, positionZ, rotationY, material) {
+  const profile = new THREE.Shape();
+  profile.moveTo(profilePoints[0][0], profilePoints[0][1]);
+  for (const point of profilePoints.slice(1)) profile.lineTo(point[0], point[1]);
+  profile.closePath();
+  const geometry = new THREE.ExtrudeGeometry(profile, { depth: length, bevelEnabled: false, steps: 1 });
+  geometry.translate(0, 0, -length / 2);
+  const support = new THREE.Mesh(geometry, material);
+  support.position.set(positionX, 0, positionZ); support.rotation.y = rotationY;
+  support.castShadow = true; support.receiveShadow = true;
+  parent.add(support);
+}
+
 function mergeStaticMeshes(parent, excludedMesh) {
   parent.updateMatrixWorld(true);
   const materialGroups = new Map();
@@ -177,6 +190,7 @@ export function createGardenScene() {
   for (const side of [-1, 1]) {
     box(scene, .48, 2.1, 13.3, side * 12.65, .9, -.15, wallMaterial);
     box(scene, .7, .36, 13.6, side * 12.65, -.08, -.15, foundationMaterial);
+    wallRoofSupport(scene, [[-.47, 1.93], [.47, 1.93], [.47, 2.002 + side * .043], [-.47, 2.002 - side * .043]], 13.65, side * 12.65, -.15, 0, woodMaterial);
     const cap = box(scene, 1.02, .16, 13.9, side * 12.65, 2.08, -.15, roofMaterial); cap.rotation.z = side * .09;
     for (let tileIndex = 0; tileIndex < 67; tileIndex++) {
       const tile = new THREE.Mesh(new THREE.CylinderGeometry(.07, .07, 1.05, 8, 1, false, 0, Math.PI), roofMaterial);
@@ -185,6 +199,8 @@ export function createGardenScene() {
   }
   box(scene, 25.7, 2.1, .45, 0, .9, -6.65, wallMaterial);
   box(scene, 25.8, .35, .68, 0, -.06, -6.65, foundationMaterial);
+  // A solid timber bed meets the plaster and follows the roof's underside.
+  wallRoofSupport(scene, [[-.48, 1.93], [.48, 1.93], [.48, 2.02], [0, 2.155], [-.48, 2.02]], 25.9, 0, -6.65, Math.PI / 2, woodMaterial);
   for (const slope of [-1, 1]) {
     const cap = box(scene, 26.1, .12, .58, 0, 2.13, -6.65 + slope * .24, roofMaterial); cap.rotation.x = slope * .23;
   }
