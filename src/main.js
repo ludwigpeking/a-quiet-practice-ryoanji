@@ -435,6 +435,7 @@ document.querySelector('#clear-button').addEventListener('click', function clear
 const toolDock = document.querySelector('#tool-dock');
 const toolSign = document.querySelector('#tool-sign');
 document.querySelector('#tool-panel').append(document.querySelector('.header-actions'));
+document.querySelector('#tool-panel').insertBefore(document.querySelector('.toolbar'), document.querySelector('#brush-settings'));
 let closeToolsTimeout;
 function openTools() {
   clearTimeout(closeToolsTimeout);
@@ -573,7 +574,12 @@ function animate() {
     composer.render(); renderRequested = false;
   }
   frameCount++;
-  if (frameCount === 3) { const loading = document.querySelector('#loading'); loading.style.opacity = '0'; setTimeout(function removeLoading() { loading.hidden = true; renderRequested = true; }, 850); }
+  if (frameCount === 3) {
+    const loading = document.querySelector('#loading');
+    document.body.classList.remove('is-loading');
+    loading.style.opacity = '0';
+    setTimeout(function removeLoading() { loading.hidden = true; renderRequested = true; }, 700);
+  }
 }
 animate();
 

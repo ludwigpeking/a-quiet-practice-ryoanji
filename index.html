@@ -6,8 +6,21 @@
   <meta name="theme-color" content="#e9e5d9" />
   <meta name="description" content="Sit beneath the eaves. Arrange stones, rake the gravel, and shape a quiet corner of Kyoto in this interactive Three.js garden." />
   <title>Ryōan-ji — A quiet practice</title>
+  <!-- First-paint styles must not wait for the JavaScript module graph. -->
+  <style>
+    html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#edeade}
+    body.is-loading #experience{visibility:hidden;pointer-events:none}
+    body > #loading{position:fixed;inset:0;z-index:100;display:flex;flex-direction:column;align-items:center;justify-content:center;box-sizing:border-box;padding:24px;background:#edeade;color:#6c755b;text-align:center;transition:opacity .65s ease;pointer-events:auto}
+    body > #loading h2{margin:22px 0 12px;font:400 26px/1.5 Georgia,'Yu Mincho',serif}
+    body > #loading p{margin:0;font:11px/1.8 system-ui,sans-serif;letter-spacing:2px}
+    body > #loading .loading-mark{font:55px/1.3 'Yu Mincho','Hiragino Mincho ProN',serif;animation:arrival-breathe 2.4s ease-in-out infinite}
+    #loading[hidden]{display:none!important}
+    @keyframes arrival-breathe{50%{opacity:.4}}
+    @media(prefers-reduced-motion:reduce){body > #loading{transition:none}body > #loading .loading-mark{animation:none}}
+  </style>
 </head>
-<body>
+<body class="is-loading">
+  <div id="loading" role="status" aria-live="polite"><span class="loading-mark" aria-hidden="true">庭</span><h2>A moment of stillness.</h2><p>Preparing the garden…</p><noscript><p>Please enable JavaScript to enter the garden.</p></noscript></div>
   <main id="experience" aria-label="Interactive Ryōan-ji inspired garden">
     <canvas id="garden" aria-label="Garden. Drag to sculpt; right-drag to look around." tabindex="0"></canvas>
     <div class="vignette" aria-hidden="true"></div>
@@ -34,7 +47,6 @@
     <footer class="footer interface"><span><span class="live-dot"></span> <span id="stone-count">15 STONES</span> <span class="divider">·</span> ENDLESS POSSIBILITIES</span><span>Drag to create <span class="divider">/</span> Right-drag to look <span class="divider">/</span> Scroll to draw closer</span></footer>
     <button id="return-button" hidden>↙ Return to the garden tools <kbd>Esc</kbd></button>
     <div id="toast" role="status" aria-live="polite"></div>
-    <div id="loading"><span class="loading-mark">庭</span><h2>A moment of stillness.</h2><p>Preparing the garden…</p></div>
     <dialog id="guide-dialog"><button class="dialog-close" aria-label="Close guide">×</button><div class="eyebrow">A SMALL GUIDE</div><h2>Make room for quiet.</h2><p>This is an artistic interpretation of Ryōan-ji’s dry landscape garden, seen from beneath the timber eaves. There is no score, and no correct arrangement.</p><div class="guide-grid"><div><h4>Shape the gravel</h4><p>Drag with Rake, Raise, Press, Push, or Smooth. The rake bar turns with your drag and leaves parallel grooves. Push moves material in the direction of your stroke. <kbd>[</kbd> and <kbd>]</kbd> change the rake width or brush diameter.</p></div><div><h4>Compose with stone</h4><p>Choose Stones, then click the gravel. Drag existing stones to reposition them. <kbd>R</kbd> rotates the selected stone; <kbd>Delete</kbd> removes it.</p></div><div><h4>Change your view</h4><p>Right-drag to look around; scroll to zoom. Switch Perspective for a higher view. Contemplate hides the tools; <kbd>Esc</kbd> brings them back.</p></div><div><h4>Keep a moment</h4><p>Save keeps this garden in this browser and restores it on your next visit. <kbd>Ctrl</kbd> / <kbd>⌘</kbd> + <kbd>Z</kbd> undoes a stroke or a stone edit.</p></div></div><h4>Looking to Kyoto</h4><p class="reference-copy">The low clay walls, white gravel, moss islands, fifteen stones in five groups, and shaded veranda draw from these landscape and stone references. The playable layout and sculptural forms are freely interpreted.</p><a href="https://www.nabunken.go.jp/org/bunka/jgd/pages/GardenAtRyoanji_Abbots.html" target="_blank" rel="noopener">Nara National Research Institute · Garden composition ↗</a><a href="https://kyoto.travel/en/destinations/ryoanji-temple/" target="_blank" rel="noopener">Kyoto Travel · Ryōan-ji and its viewing platform ↗</a><a href="https://smarthistory.org/ryoanji-peaceful-dragon-temple/" target="_blank" rel="noopener">Smarthistory · Photographic landscape & stone references ↗</a></dialog>
     <dialog id="reset-dialog"><h2>A fresh beginning?</h2><p>Restore the original stones and raked gravel. You can undo this change.</p><div class="dialog-actions"><button id="cancel-reset">Keep this garden</button><button id="confirm-reset" class="primary-button">Begin again</button></div></dialog>
   </main>
