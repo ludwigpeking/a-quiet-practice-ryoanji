@@ -1,13 +1,33 @@
 export const GARDEN_WIDTH = 24;
 export const GARDEN_DEPTH = 11.5;
-export const COLUMN_COUNT = 289;
-export const ROW_COUNT = 139;
+export const COLUMN_COUNT = 577;
+export const ROW_COUNT = 277;
 export const CELL_WIDTH = GARDEN_WIDTH / (COLUMN_COUNT - 1);
 export const CELL_DEPTH = GARDEN_DEPTH / (ROW_COUNT - 1);
 export const RAKE_TOOTH_SPACING = Math.PI * 2 / 28;
 export const RAKE_HALF_DEPTH = .14;
 
 export function clamp(value, minimum, maximum) { return Math.max(minimum, Math.min(maximum, value)); }
+
+// Upgrade the original sand grid without losing a browser-saved composition.
+export function resampleSavedHeights(sourceHeights, sourceColumns = 289, sourceRows = 139) {
+  if (sourceHeights.length === COLUMN_COUNT * ROW_COUNT) return new Float32Array(sourceHeights);
+  const heights = new Float32Array(COLUMN_COUNT * ROW_COUNT);
+  for (let rowIndex = 0; rowIndex < ROW_COUNT; rowIndex++) {
+    const sourceRow = rowIndex / (ROW_COUNT - 1) * (sourceRows - 1);
+    const lowerRow = Math.floor(sourceRow), upperRow = Math.min(lowerRow + 1, sourceRows - 1);
+    const rowFraction = sourceRow - lowerRow;
+    for (let columnIndex = 0; columnIndex < COLUMN_COUNT; columnIndex++) {
+      const sourceColumn = columnIndex / (COLUMN_COUNT - 1) * (sourceColumns - 1);
+      const lowerColumn = Math.floor(sourceColumn), upperColumn = Math.min(lowerColumn + 1, sourceColumns - 1);
+      const columnFraction = sourceColumn - lowerColumn;
+      const lowerHeight = sourceHeights[lowerRow * sourceColumns + lowerColumn] * (1 - columnFraction) + sourceHeights[lowerRow * sourceColumns + upperColumn] * columnFraction;
+      const upperHeight = sourceHeights[upperRow * sourceColumns + lowerColumn] * (1 - columnFraction) + sourceHeights[upperRow * sourceColumns + upperColumn] * columnFraction;
+      heights[rowIndex * COLUMN_COUNT + columnIndex] = lowerHeight * (1 - rowFraction) + upperHeight * rowFraction;
+    }
+  }
+  return heights;
+}
 
 export function createInitialHeights(stoneDefinitions) {
   const heights = new Float32Array(COLUMN_COUNT * ROW_COUNT);

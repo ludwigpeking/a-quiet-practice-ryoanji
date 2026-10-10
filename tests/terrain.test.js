@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { applyBrush, createInitialHeights, sampleHeight, COLUMN_COUNT, ROW_COUNT } from '../src/terrain.js';
+import { applyBrush, createInitialHeights, sampleHeight, resampleSavedHeights, COLUMN_COUNT, ROW_COUNT } from '../src/terrain.js';
 
 test('rake contact is a narrow bar that rotates perpendicular to travel', function rakeFootprint() {
   for (const direction of [[1, 0], [0, 1]]) {
@@ -20,8 +20,7 @@ test('overlapping rake strokes leave continuous grooves without lowering the who
     applyBrush(heights, makeStamp({ tool: 'rake', worldX: -2 + stampIndex * .04, elapsedSeconds: .04, referenceHeights }));
   }
   for (const worldX of [-1.5, -1, 0, 1, 1.5]) assert.ok(sampleHeight(heights, worldX, 0) < .27);
-  assert.ok(Math.min(...heights) >= .2579);
-  assert.ok(Math.max(...heights) <= .3421);
+  assert.ok(heights.every(function boundedHeight(height) { return height >= .2579 && height <= .3421; }));
   assert.ok(Math.abs(sampleHeight(heights, 0, 2) - .3) < .00001);
 });
 
@@ -56,7 +55,20 @@ test('smoothing reduces a spike and never affects outside the brush', function s
 test('long sculpting remains within stable height limits', function heightLimits() {
   const heights = new Float32Array(COLUMN_COUNT * ROW_COUNT);
   for (let strokeIndex = 0; strokeIndex < 100; strokeIndex++) applyBrush(heights, makeStamp({ elapsedSeconds: 1 }));
-  assert.ok(Math.max(...heights) <= 1.5);
+  assert.ok(heights.every(function belowCeiling(height) { return height <= 1.5; }));
   for (let strokeIndex = 0; strokeIndex < 100; strokeIndex++) applyBrush(heights, makeStamp({ tool: 'press', elapsedSeconds: 1 }));
-  assert.ok(Math.min(...heights) >= -.650001);
+  assert.ok(heights.every(function aboveFloor(height) { return height >= -.650001; }));
+});
+
+test('legacy saved sand keeps its heights and boundaries on the finer grid', function legacyGarden() {
+  const source = new Float32Array(289 * 139);
+  for (let rowIndex = 0; rowIndex < 139; rowIndex++) {
+    for (let columnIndex = 0; columnIndex < 289; columnIndex++) source[rowIndex * 289 + columnIndex] = columnIndex / 288 * .6 + rowIndex / 138 * .2;
+  }
+  const upgraded = resampleSavedHeights(source);
+  assert.equal(upgraded.length, COLUMN_COUNT * ROW_COUNT);
+  assert.ok(Math.abs(sampleHeight(upgraded, 0, 0) - .4) < 1e-6);
+  assert.equal(upgraded[0], source[0]);
+  assert.equal(upgraded.at(-1), source.at(-1));
+  assert.deepEqual(resampleSavedHeights(upgraded), upgraded);
 });
