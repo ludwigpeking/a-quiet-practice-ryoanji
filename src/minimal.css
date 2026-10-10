@@ -79,3 +79,13 @@
 .tool-dock .stone-choice small{display:block;font-size:8px;line-height:12px;letter-spacing:.4px;opacity:.8}
 .tool-dock .microcopy{font-size:10px;line-height:1.7;color:#eee9d8;margin:12px 0 0}
 @media(max-width:700px){.tool-dock .inspector{padding:18px}.tool-dock .setting-row{margin:12px 0}}
+/* Desktop clicks belong to desktop icons, never to the sculpting tools. */
+body.wallpaper .interface,
+body.wallpaper #tool-dock,
+body.wallpaper #return-button,
+body.wallpaper #toast,
+body.wallpaper #performance-meter,
+body.wallpaper dialog { display: none !important; }
+body.wallpaper #garden { pointer-events: none; cursor: default; }
+.wallpaper-download { display: flex; justify-content: space-between; margin-top: 12px; text-decoration: none; font-size: 11px; }
+

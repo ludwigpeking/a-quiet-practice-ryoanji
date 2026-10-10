@@ -31,7 +31,7 @@ export function createForest(scene, createLeafTexture, randomNumber) {
       const lobeAngle = lobeIndex * Math.PI * 2 / 3 + randomNumber();
       canopyCores.push({
         position: [centerX + Math.cos(lobeAngle) * radiusX * .25, centerY + (randomNumber() - .5) * radiusY * .3, centerZ + Math.sin(lobeAngle) * radiusZ * .25],
-        scale: [radiusX * .61, radiusY * .72, radiusZ * .61], species, seasonalFamily, hue, autumnHue, lightness: lightness * .57,
+        scale: [radiusX * .35, radiusY * .42, radiusZ * .35], species, seasonalFamily, hue, autumnHue, lightness: lightness * .57,
       });
     }
     const instances = foliageBatches.get(species).instances;
@@ -197,7 +197,17 @@ export function createForest(scene, createLeafTexture, randomNumber) {
     const sourceLightness = isCore ? instance.lightness / .57 : instance.lightness;
     const brightnessFactor = THREE.MathUtils.clamp(sourceLightness / .33, .72, 1.35);
     const blossomBrightness = instance.seasonalFamily === 'cherry' && season === 'spring' ? .8 : 1;
-    foliageColor.multiplyScalar(brightnessFactor * (isCore ? 1.8 : 2.2) * blossomBrightness);
+    const seasonalBrightness = season === 'spring' ? 1.14 : season === 'summer' ? .86 : 1;
+    foliageColor.multiplyScalar(brightnessFactor * (isCore ? 1.8 : 2.2) * blossomBrightness * seasonalBrightness);
+    // Fresh spring leaves are lighter; mature summer greens stay deeper.
+    // Apply the same seasonal treatment to the low, middle and high layers.
+    const foliageLuminance = foliageColor.r * .2126 + foliageColor.g * .7152 + foliageColor.b * .0722;
+    const retainedChroma = season === 'spring' ? .82 : season === 'summer' ? .76 : .52;
+    foliageColor.setRGB(
+      foliageLuminance + (foliageColor.r - foliageLuminance) * retainedChroma,
+      foliageLuminance + (foliageColor.g - foliageLuminance) * retainedChroma,
+      foliageLuminance + (foliageColor.b - foliageLuminance) * retainedChroma
+    );
     return foliageColor;
   }
   const hiddenMatrix = new THREE.Matrix4().makeScale(0, 0, 0);

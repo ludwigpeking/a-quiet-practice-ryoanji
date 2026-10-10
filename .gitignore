@@ -3,3 +3,5 @@ dist/
 .sites-local/
 *.tar.gz
 qa/
+wallpaper-build/
+public/ryoanji-wallpaper.zip

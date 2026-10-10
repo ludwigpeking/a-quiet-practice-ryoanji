@@ -8,10 +8,20 @@ import { createGardenScene, createStone, seatStoneOnTerrain, originalStones } fr
 import { createInitialHeights, applyBrush, sampleHeight, resampleSavedHeights, clamp, COLUMN_COUNT, ROW_COUNT, RAKE_TOOTH_SPACING, RAKE_HALF_DEPTH } from './terrain.js';
 import { createRakePath, advanceRakePath, planRakeContact } from './rake-path.js';
 import { createGardenAmbience } from './ambience.js';
+import { readWallpaperOptions, createWallpaperFrameGate, installWallpaperCallbacks } from './wallpaper.js';
 import './style.css';
 import './minimal.css';
 
 const canvas = document.querySelector('#garden');
+const wallpaperOptions = readWallpaperOptions(location.search, document.body.dataset.wallpaper === 'true');
+const wallpaperFrameGate = createWallpaperFrameGate(wallpaperOptions.framesPerSecond);
+let wallpaperPaused = false;
+if (wallpaperOptions.enabled) {
+  document.body.classList.add('wallpaper');
+  document.querySelector('#tool-dock').inert = true;
+  canvas.tabIndex = -1;
+  canvas.setAttribute('aria-label', 'A quiet garden wallpaper');
+}
 let renderer;
 try {
   renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance', preserveDrawingBuffer: true });
@@ -19,7 +29,7 @@ try {
   document.querySelector('#loading').innerHTML = '<span class="loading-mark">庭</span><h2>The garden needs WebGL.</h2><p>Please enable hardware acceleration in your browser, then reload.</p>';
   throw error;
 }
-renderer.setPixelRatio(Math.min(devicePixelRatio, 1.6));
+renderer.setPixelRatio(Math.min(devicePixelRatio, wallpaperOptions.enabled ? 1 : 1.6));
 renderer.setSize(innerWidth, innerHeight);
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
@@ -45,6 +55,7 @@ controls.enablePan = false;
 controls.mouseButtons = { LEFT: null, MIDDLE: THREE.MOUSE.DOLLY, RIGHT: THREE.MOUSE.ROTATE };
 controls.touches = { ONE: null, TWO: THREE.TOUCH.DOLLY_ROTATE };
 controls.update();
+controls.enabled = !wallpaperOptions.enabled;
 
 const composer = new EffectComposer(renderer);
 composer.addPass(new RenderPass(scene, camera));
@@ -67,7 +78,7 @@ let chosenStoneSize = 1;
 let chosenLighting = 'afternoon';
 let chosenSeason = 'summer';
 let isElevatedView = false;
-let isContemplating = false;
+let isContemplating = wallpaperOptions.enabled;
 let isSculpting = false;
 let selectedStone = null;
 let draggedStone = null;
@@ -391,6 +402,7 @@ canvas.addEventListener('pointerdown', function beginGesture(event) {
 function clampStonePosition(worldX, worldZ, size) { return { x: clamp(worldX, -11.7 + size, 11.7 - size), z: clamp(worldZ, -5.45 + size * .8, 5.45 - size * .8) }; }
 
 canvas.addEventListener('pointermove', function movePointer(event) {
+  if (wallpaperOptions.enabled) return;
   updatePointer(event); pointerIsInside = true;
   if (activeTool === 'rake') {
     const point = terrainIntersection();
@@ -522,6 +534,7 @@ document.querySelector('#contemplate-button').addEventListener('click', function
 document.querySelector('#return-button').addEventListener('click', function returnToTools() { setContemplating(false); });
 
 window.addEventListener('keydown', function handleKey(event) {
+  if (wallpaperOptions.enabled) return;
   if (guideDialog.open || resetDialog.open) return;
   if (event.key === 'Escape') { setContemplating(false); closeTools(); return; }
   if (event.target.matches('input, textarea, select') || event.target.isContentEditable) return;
@@ -584,6 +597,19 @@ try {
   }
 } catch { /* Storage may be disabled; the garden remains fully playable. */ }
 updateTerrain(); setTool('rake');
+if (wallpaperOptions.enabled) {
+  if (wallpaperOptions.season) setSeason(wallpaperOptions.season);
+  installWallpaperCallbacks(window, {
+    setSeason,
+    setFrameRate: function setWallpaperFrameRate(value) { wallpaperFrameGate.setFrameRate(value); },
+    setPaused: function setWallpaperPaused(value) {
+      wallpaperPaused = value;
+      wallpaperFrameGate.advance(0, true);
+      frameClock.getDelta();
+      renderRequested = true;
+    },
+  });
+}
 document.querySelector('#undo-button').disabled = true;
 const frameClock = new THREE.Clock();
 const performanceMeter = document.createElement('output');
@@ -602,7 +628,11 @@ document.addEventListener('visibilitychange', function pauseHiddenGarden() {
 let frameCount = 0;
 function animate() {
   requestAnimationFrame(animate);
-  const frameDuration = frameClock.getDelta();
+  let frameDuration = frameClock.getDelta();
+  if (wallpaperOptions.enabled) {
+    frameDuration = wallpaperFrameGate.advance(frameDuration, document.hidden || wallpaperPaused);
+    if (!frameDuration) return;
+  }
   if (document.hidden) return;
   const elapsedSeconds = Math.min(frameDuration, .06);
   const breezeChanged = forest.breeze.update(frameDuration, reducedMotionPreference.matches);

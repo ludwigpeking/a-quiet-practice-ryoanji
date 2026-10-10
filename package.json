@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite --host 127.0.0.1",
-    "build": "vite build",
+    "build": "node scripts/build-wallpaper.mjs && vite build",
+    "build:wallpaper": "node scripts/build-wallpaper.mjs",
     "preview": "vite preview --host 127.0.0.1"
   },
   "dependencies": {
