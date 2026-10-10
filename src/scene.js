@@ -232,12 +232,21 @@ export function createGardenScene() {
   // Deep eaves, exposed rafters, polished planks and the shaded temple interior.
   const temple = new THREE.Group(); scene.add(temple);
   box(temple, 33, .48, 5.5, 0, -.1, 9.25, woodMaterial);
+  // Recessed masonry reaches the ground and overlaps the timber floor body.
+  box(temple, 33, .58, 5.5, 0, -.61, 9.25, foundationMaterial);
   const plankMaterials = Array.from({ length: 7 }, function plankMaterial(unused, colorIndex) { const material = woodMaterial.clone(); material.color.setHSL(.095, .16, .56 + colorIndex * .015); return material; });
-  for (let plankIndex = 0; plankIndex < 85; plankIndex++) {
+  const floorHalfWidth = 16.5;
+  const plankSpacing = .57;
+  const plankJointWidth = .008;
+  const plankGridOffset = .19;
+  for (let plankIndex = 0; plankIndex < 59; plankIndex++) {
     const plankMaterial = plankMaterials[plankIndex % 7];
-    box(temple, .375, .09, 5.5, -16 + plankIndex * .385, .18, 9.25, plankMaterial);
+    const plankLeft = Math.max(-floorHalfWidth, -floorHalfWidth - plankGridOffset + plankIndex * plankSpacing);
+    const plankRight = Math.min(floorHalfWidth, -floorHalfWidth - plankGridOffset + (plankIndex + 1) * plankSpacing - plankJointWidth);
+    box(temple, plankRight - plankLeft, .09, 5.5, (plankLeft + plankRight) / 2, .18, 9.25, plankMaterial);
   }
-  box(temple, 33, .19, .22, 0, .12, 6.49, woodMaterial);
+  // The deeper fascia covers the former open slit above the lower edge beam.
+  box(temple, 33, .57, .22, 0, -.07, 6.49, woodMaterial);
   box(temple, 33, .15, .65, 0, -.15, 6.15, woodMaterial);
   const columnLinePositionZ = 7.65;
   for (const postX of [-13.3, -5.6, 5.6, 13.3]) {
