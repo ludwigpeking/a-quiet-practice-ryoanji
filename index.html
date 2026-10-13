@@ -27,7 +27,7 @@
     <header class="topbar interface">
       <div class="identity"><span class="seal">庭</span><div><h1>RYŌAN-JI</h1><p>A QUIET PRACTICE</p></div></div>
       <div class="location"><span class="live-dot"></span> KYOTO, JAPAN <span class="divider">/</span> <span id="light-label">LATE AFTERNOON</span></div>
-      <div class="header-actions"><button id="sound-button" class="icon-button" title="Soft breeze and summer cicadas" aria-label="Enable seasonal nature sounds" aria-pressed="false">♫</button><button id="help-button" class="icon-button" title="Guide and references" aria-label="Guide and references">?</button><button id="contemplate-button" class="outline-button">Contemplate <span>↗</span></button></div>
+      <div class="header-actions"><button id="sound-button" class="icon-button" title="Soft breeze and summer cicadas" aria-label="Enable seasonal nature sounds" aria-pressed="false">♫</button><button id="fullscreen-button" class="icon-button" title="Full screen" aria-label="Enter full screen" aria-pressed="false">⛶</button><button id="help-button" class="icon-button" title="Guide and references" aria-label="Guide and references">?</button><button id="contemplate-button" class="outline-button">Contemplate <span>↗</span></button></div>
     </header>
     <section class="intro interface"><div class="eyebrow">枯山水 <span>THE ART OF EMPTY SPACE</span></div><h2>Nothing to finish.<br>Only to begin.</h2><p>A stone, a ripple, a little room to breathe.</p></section>
     <div id="tool-dock" class="tool-dock">
@@ -65,6 +65,14 @@
     </dialog>
     <dialog id="reset-dialog"><h2>A fresh beginning?</h2><p>Restore the original stones and raked gravel. You can undo this change.</p><div class="dialog-actions"><button id="cancel-reset">Keep this garden</button><button id="confirm-reset" class="primary-button">Begin again</button></div></dialog>
   </main>
+  <section id="entrance" aria-labelledby="entrance-title" hidden>
+    <div class="entrance-content">
+      <p class="entrance-eyebrow">AN INTERACTIVE GARDEN</p>
+      <h2 id="entrance-title">A Quiet Practice</h2>
+      <button id="enter-garden" type="button">Enter garden <span aria-hidden="true">↗</span></button>
+      <p id="entrance-note">Sound on · Full screen</p>
+    </div>
+  </section>
   <script type="module" src="/src/main.js"></script>
 </body>
 </html>

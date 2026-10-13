@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { mergeGeometries, mergeVertices } from 'three/addons/utils/BufferGeometryUtils.js';
 import { createForest } from './forest.js';
 import { enrichStoneMaterial } from './stone-material.js';
+import { enrichMossMaterial } from './moss-material.js';
 import { GARDEN_WIDTH, GARDEN_DEPTH, COLUMN_COUNT, ROW_COUNT, sampleHeight } from './terrain.js';
 
 export function seededRandom(seed) {
@@ -283,7 +284,7 @@ export function createGardenScene() {
   pebbles.castShadow = true; pebbles.receiveShadow = true;
   scene.add(pebbles);
   const rockMaterial = enrichStoneMaterial(createMaterial('rock', 62, 1, 1)); rockMaterial.vertexColors = true; rockMaterial.bumpScale = .035;
-  const mossMaterial = createMaterial('moss', 64, 3, 3);
+  const mossMaterial = enrichMossMaterial(createMaterial('moss', 64, 3, 3));
   mergeStaticMeshes(scene, sand);
   scene.add(temple);
   return { scene, sand, sunlight, hemisphere, fillLight, rockMaterial, mossMaterial, temple, forest };
@@ -295,7 +296,7 @@ export function createStone(definition, rockMaterial, mossMaterial) {
   const randomNumber = seededRandom(definition.seed);
   const shapeScales = { spire: [.65, 1.48, .6], reclining: [1.17, .54, .61], mountain: [.99, 1.05, .77], split: [.75, 1.12, .66] };
   const shapeScale = shapeScales[definition.shape];
-  let geometry = new THREE.IcosahedronGeometry(1, 4);
+  let geometry = new THREE.IcosahedronGeometry(1, 7);
   const positions = geometry.attributes.position;
   const colors = new Float32Array(positions.count * 3);
   const color = new THREE.Color();
@@ -303,7 +304,7 @@ export function createStone(definition, rockMaterial, mossMaterial) {
   for (let vertexIndex = 0; vertexIndex < positions.count; vertexIndex++) {
     const sourceX = positions.getX(vertexIndex), sourceY = positions.getY(vertexIndex), sourceZ = positions.getZ(vertexIndex);
     const broadNoise = Math.sin(sourceX * 3.1 + sourceY * 2.8 + noiseOffset) * Math.cos(sourceZ * 4.7 - sourceY * 2.2) * .16;
-    const fineNoise = Math.sin(sourceX * 17 + sourceZ * 11 + noiseOffset) * Math.sin(sourceY * 13 - sourceZ * 8) * .038;
+    const fineNoise = Math.sin(sourceX * 12.7 + sourceZ * 9.3 + noiseOffset + Math.sin(sourceY * 8.1)) * Math.sin(sourceY * 11.2 - sourceZ * 7.6 + Math.cos(sourceX * 5.3 + noiseOffset)) * .025;
     const radius = 1 + broadNoise + fineNoise;
     let height = (sourceY + .8) * shapeScale[1] * .55;
     if (definition.shape === 'split') height *= .48 + .6 * Math.abs(sourceX);
@@ -321,11 +322,12 @@ export function createStone(definition, rockMaterial, mossMaterial) {
   for (let vertexIndex = 0; vertexIndex < mossPositions.count; vertexIndex++) {
     const sourceX = mossPositions.getX(vertexIndex), sourceY = mossPositions.getY(vertexIndex), sourceZ = mossPositions.getZ(vertexIndex);
     const edgeDistortion = 1 + Math.sin(sourceX * 7 + sourceZ * 5 + noiseOffset) * .07 + Math.cos(sourceZ * 13 + noiseOffset) * .025;
-    const cushionVariation = 1 + Math.sin(sourceX * 8 + noiseOffset) * Math.cos(sourceZ * 7) * .16;
+    const cushionVariation = 1 + Math.sin(sourceX * 5 + noiseOffset) * Math.cos(sourceZ * 4) * .045;
     const moundHeight = sourceY > 0 ? .24 * Math.pow(sourceY, 1.3) * cushionVariation : sourceY * .04;
     mossPositions.setXYZ(vertexIndex, sourceX * shapeScale[0] * 1.4 * edgeDistortion, moundHeight - .008, sourceZ * shapeScale[2] * 1.46 * edgeDistortion);
   }
   mossGeometry.computeVertexNormals();
+  mossGeometry.setAttribute('mossSeed', new THREE.BufferAttribute(new Float32Array(mossPositions.count).fill(noiseOffset), 1));
   const moss = new THREE.Mesh(mossGeometry, mossMaterial); moss.castShadow = true; moss.receiveShadow = true; group.add(moss);
   group.userData.moss = moss;
   group.userData.mossBasePositions = mossPositions.array.slice();

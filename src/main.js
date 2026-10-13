@@ -8,6 +8,7 @@ import { createGardenScene, createStone, seatStoneOnTerrain, originalStones } fr
 import { createInitialHeights, applyBrush, sampleHeight, resampleSavedHeights, clamp, COLUMN_COUNT, ROW_COUNT, RAKE_TOOTH_SPACING, RAKE_HALF_DEPTH } from './terrain.js';
 import { createRakePath, advanceRakePath, planRakeContact } from './rake-path.js';
 import { createGardenAmbience } from './ambience.js';
+import { startGardenImmersion } from './immersion.js';
 import { readWallpaperOptions, createWallpaperFrameGate, installWallpaperCallbacks } from './wallpaper.js';
 import './style.css';
 import './minimal.css';
@@ -15,6 +16,9 @@ import './minimal.css';
 const canvas = document.querySelector('#garden');
 const wallpaperOptions = readWallpaperOptions(location.search, document.body.dataset.wallpaper === 'true');
 const wallpaperFrameGate = createWallpaperFrameGate(wallpaperOptions.framesPerSecond);
+const entrance = document.querySelector('#entrance');
+const experience = document.querySelector('#experience');
+experience.inert = !wallpaperOptions.enabled;
 let wallpaperPaused = false;
 if (wallpaperOptions.enabled) {
   document.body.classList.add('wallpaper');
@@ -547,7 +551,7 @@ document.querySelector('#contemplate-button').addEventListener('click', function
 document.querySelector('#return-button').addEventListener('click', function returnToTools() { setContemplating(false); });
 
 window.addEventListener('keydown', function handleKey(event) {
-  if (wallpaperOptions.enabled) return;
+  if (wallpaperOptions.enabled || experience.inert) return;
   if (guideDialog.open || resetDialog.open || wallpaperDialog.open) return;
   if (event.key === 'Escape') { setContemplating(false); closeTools(); return; }
   if (event.target.matches('input, textarea, select') || event.target.isContentEditable) return;
@@ -578,14 +582,54 @@ window.addEventListener('keydown', function handleKey(event) {
 });
 
 let soundEnabled = false;
+const soundButton = document.querySelector('#sound-button');
+const fullscreenButton = document.querySelector('#fullscreen-button');
+const fullscreenSupported = Boolean(document.documentElement.requestFullscreen && document.fullscreenEnabled);
+fullscreenButton.hidden = !fullscreenSupported || wallpaperOptions.enabled;
+if (!fullscreenSupported) document.querySelector('#entrance-note').textContent = 'Sound on · A moment for yourself';
+
+async function setGardenSound(enabled) {
+  soundEnabled = await gardenAmbience.setEnabled(enabled);
+  soundButton.style.background = soundEnabled ? '#a9b38355' : '';
+  soundButton.setAttribute('aria-label', soundEnabled ? 'Disable seasonal nature sounds' : 'Enable seasonal nature sounds');
+  soundButton.setAttribute('aria-pressed', String(soundEnabled));
+  return soundEnabled;
+}
+
+document.querySelector('#enter-garden').addEventListener('click', async function enterGarden() {
+  this.disabled = true;
+  const requests = startGardenImmersion(
+    function enableGardenSound() { return setGardenSound(true); },
+    function enterGardenFullscreen() {
+      if (fullscreenSupported && !document.fullscreenElement) return document.documentElement.requestFullscreen();
+    }
+  );
+  experience.inert = false;
+  entrance.classList.add('leaving');
+  canvas.focus({ preventScroll: true });
+  setTimeout(function hideEntrance() { entrance.hidden = true; }, 700);
+  const [soundResult, fullscreenResult] = await requests;
+  if (soundResult.status === 'rejected') showToast('Use the sound button to start the nature sounds.');
+  else if (fullscreenResult.status === 'rejected') showToast('The garden is ready. Full screen is available in the tools.');
+});
+
+fullscreenButton.addEventListener('click', async function toggleFullscreen() {
+  try {
+    if (document.fullscreenElement) await document.exitFullscreen();
+    else await document.documentElement.requestFullscreen();
+  } catch { showToast('Full screen is unavailable in this browser window.'); }
+});
+document.addEventListener('fullscreenchange', function updateFullscreenControl() {
+  const isFullscreen = Boolean(document.fullscreenElement);
+  fullscreenButton.setAttribute('aria-pressed', String(isFullscreen));
+  fullscreenButton.setAttribute('aria-label', isFullscreen ? 'Exit full screen' : 'Enter full screen');
+  fullscreenButton.title = isFullscreen ? 'Exit full screen (Esc)' : 'Full screen';
+});
 document.querySelector('#sound-button').addEventListener('click', async function toggleSound() {
   const soundButton = document.querySelector('#sound-button');
   soundButton.disabled = true;
   try {
-    soundEnabled = await gardenAmbience.setEnabled(!soundEnabled);
-    soundButton.style.background = soundEnabled ? '#a9b38355' : '';
-    soundButton.setAttribute('aria-label', soundEnabled ? 'Disable seasonal nature sounds' : 'Enable seasonal nature sounds');
-    soundButton.setAttribute('aria-pressed', String(soundEnabled));
+    await setGardenSound(!soundEnabled);
     showToast(soundEnabled ? 'A little breeze, with cicadas in summer.' : 'Quiet again.');
   } catch {
     showToast('Sound could not start. Try the sound button again.');
@@ -685,6 +729,7 @@ function animate() {
   }
   frameCount++;
   if (frameCount === 3) {
+    if (!wallpaperOptions.enabled) entrance.hidden = false;
     const loading = document.querySelector('#loading');
     document.body.classList.remove('is-loading');
     loading.style.opacity = '0';

@@ -1,4 +1,18 @@
 /* A single small sign is the entry point. The garden owns the screen. */
+#entrance{position:fixed;inset:0;z-index:90;display:grid;place-items:center;background:linear-gradient(180deg,#10181030,#111b16a8);color:#f5f1e5;text-align:center;opacity:1;transition:opacity .7s ease}
+#entrance[hidden],body.wallpaper #entrance{display:none!important}
+#entrance.leaving{opacity:0;pointer-events:none}
+.entrance-content{padding:32px;max-width:calc(100% - 48px);text-shadow:0 2px 20px #0b150d80}
+#entrance .entrance-eyebrow{font:10px/1.5 system-ui,sans-serif;letter-spacing:3px;margin:0 0 22px;color:#e3e3cf}
+#entrance h2{font:400 clamp(36px,5.5vw,76px)/1.15 Georgia,serif;letter-spacing:-1.5px;margin:0 0 40px}
+#enter-garden{font:13px/1.5 system-ui,sans-serif;letter-spacing:.6px;border:1px solid #f5f1e555;border-radius:3px;padding:14px 25px;background:#ebe9d51c;color:#fffcef;backdrop-filter:blur(8px);transition:background .25s,border-color .25s}
+#enter-garden span{margin-left:22px;opacity:.7}
+#enter-garden:hover{background:#ebe9d533;border-color:#f5f1e599}
+#enter-garden:focus-visible{outline:2px solid #faf5d8;outline-offset:5px}
+#entrance-note{font:10px/1.6 system-ui,sans-serif;letter-spacing:1px;margin:16px 0 0;color:#e3e3cf}
+.tool-dock .header-actions{flex-wrap:wrap}
+.tool-dock #fullscreen-button[hidden]{display:none}
+@media(prefers-reduced-motion:reduce){#entrance,#enter-garden{transition:none}}
 .topbar,.intro,.footer{display:none!important}
 .vignette{background:linear-gradient(180deg,#101a101a,transparent 25%,transparent 85%,#121e121f)}
 .tool-dock{position:fixed;right:22px;bottom:20px;width:64px;height:68px;z-index:4}
