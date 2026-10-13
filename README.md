@@ -46,3 +46,9 @@ Reference images were consulted for visual research; no third-party photos or sc
 ## Verification
 
 `node --test tests/terrain.test.js` checks brush bounds, raised/pressed heights, push volume conservation, and smoothing. Browser QA covers rendering, tools, undo, saving/reloading, stone manipulation, lighting, and the two viewpoints.
+
+## Copyright
+
+© 2026 Richard Qian Li. All rights reserved.
+
+This project, including its source code, procedural artwork, sound design, cover art, title, and the "A Quiet Practice" name, is the intellectual property of the author. No part of it may be copied, modified, redistributed, sold, or used to create derivative works without prior written permission. Viewing the published site and playing the released game are permitted; nothing else is granted.
